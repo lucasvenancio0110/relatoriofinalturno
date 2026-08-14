@@ -1,5 +1,5 @@
 export const APP_NAME = "VENANC Tools — Relatório Final de Turno";
-export const APP_VERSION = "1.1.0";
+export const APP_VERSION = "1.1.1";
 
 export const ACCESS_HASH =
   "5d4399c14c690dd5cea764ac1157d890893108a6e7ea5a35dabb76acc8b4a1eb";
@@ -56,6 +56,7 @@ export const SECTION_LABELS = Object.freeze({
   maintenance_prod: "MANUTENÇÃO PRODUZINDO",
   maintenance_completed: "MANUTENÇÃO CONCLUÍDA INFORMADA",
   maintenance_monitoring: "MÁQUINA EM ACOMPANHAMENTO",
+  maintenance_tracking: "DETALHAMENTO DA MANUTENÇÃO",
   setup_active: "SETUP",
   setup_start: "PRÓXIMOS SETUPS",
   adjustment: "AJUSTE",

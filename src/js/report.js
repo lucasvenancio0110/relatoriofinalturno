@@ -2,7 +2,9 @@ import { activeRecords } from "./model.js";
 import {
   maintenanceCaseOf,
   maintenanceReportBucket,
-  maintenanceReportEntry,
+  maintenanceSummaryEntry,
+  maintenanceTrackingLines,
+  maintenanceTrackingReportEntry,
 } from "./maintenance.js";
 import { nextTurnHeading, padTnl, sortByTnl, uniqueNumbers, uniqueStrings } from "./utils.js";
 
@@ -14,6 +16,11 @@ function formatList(lines) {
 function formatCompleted(values) {
   const items = uniqueNumbers(values).map(padTnl);
   return items.length ? `TNL's - ${items.join(" - ")}.` : "N/A";
+}
+
+function formatBlocks(lines) {
+  const clean = uniqueStrings(lines);
+  return clean.length ? clean.join("\n\n") : "N/A";
 }
 
 export function developmentLines(state) {
@@ -44,9 +51,7 @@ export function generateReport(state, fields) {
   const records = activeRecords(state);
   const trackedLine = (record) => {
     const item = maintenanceCaseOf(state, record.tnl);
-    return item?.reviewed
-      ? maintenanceReportEntry(item, fields.currentShift)
-      : record.displayText;
+    return item ? maintenanceSummaryEntry(item) : record.displayText;
   };
   const maintenance = uniqueStrings(
     sortByTnl(records.filter((item) => item.type === "maintenance")).map(trackedLine),
@@ -57,7 +62,7 @@ export function generateReport(state, fields) {
   const maintenanceCases = Object.values(state.maintenanceCases || {});
   const monitoring = sortByTnl(
     maintenanceCases.filter((item) => maintenanceReportBucket(item) === "monitoring"),
-  ).map((item) => maintenanceReportEntry(item, fields.currentShift));
+  ).map((item) => maintenanceSummaryEntry(item));
   const completedCases = sortByTnl(
     maintenanceCases.filter((item) => maintenanceReportBucket(item) === "completed"),
   );
@@ -66,9 +71,14 @@ export function generateReport(state, fields) {
     (tnl) => !completedCaseTnls.has(Number(tnl)),
   );
   const completedMaintenance = [
-    ...completedCases.map((item) => maintenanceReportEntry(item, fields.currentShift, { completed: true })),
+    ...completedCases.map((item) => maintenanceSummaryEntry(item, { completed: true })),
     ...(legacyCompleted.length ? [`TNL's - ${legacyCompleted.map(padTnl).join(" - ")}.`] : []),
   ];
+  const maintenanceTracking = sortByTnl(
+    maintenanceCases.filter(
+      (item) => maintenanceTrackingLines(item, fields.currentShift).length > 0,
+    ),
+  ).map((item) => maintenanceTrackingReportEntry(item, fields.currentShift));
   const setup = sortByTnl(
     records.filter((item) => ["setup_active", "setup_start"].includes(item.type)),
   ).map((item) => item.displayText);
@@ -118,6 +128,9 @@ ${formatList(producing)}
 
 *MÁQUINAS EM ACOMPANHAMENTO:*
 ${formatList(monitoring)}
+
+*DETALHAMENTO DAS MANUTENÇÕES:*
+${formatBlocks(maintenanceTracking)}
 
 *SETUP:*
 ${formatList(setup)}

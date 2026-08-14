@@ -25,6 +25,9 @@ export function detectSection(line) {
   if (header === "MAQUINAS EM MANUTENCAO PRODUZINDO") return { type: "maintenance_prod" };
   if (header === "MANUTENCOES CONCLUIDAS") return { type: "maintenance_completed" };
   if (header === "MAQUINAS EM ACOMPANHAMENTO") return { type: "maintenance_monitoring" };
+  if (["DETALHAMENTO DAS MANUTENCOES", "ACOMPANHAMENTO DAS MANUTENCOES"].includes(header)) {
+    return { type: "maintenance_tracking" };
+  }
   if (["MAQUINAS EM SETUP", "SETUP"].includes(header)) return { type: "setup_active" };
   if (header === "PROXIMOS SETUPS") return { type: "setup_start" };
   const future = header.match(/^SETUPS?\s*([123])\s*T(?:URNO)?$/);
@@ -299,7 +302,9 @@ export function parseReport({
     const detected = detectSection(line);
     if (detected) {
       section = detected.type;
-      if (![
+      if (section === "maintenance_tracking") {
+        lastMaintenanceTnl = null;
+      } else if (![
         "maintenance",
         "maintenance_prod",
         "maintenance_completed",
@@ -371,7 +376,7 @@ export function parseReport({
     if (!tnl) {
       if (
         lastMaintenanceTnl &&
-        ["maintenance", "maintenance_prod", "maintenance_monitoring"].includes(section)
+        ["maintenance", "maintenance_prod", "maintenance_monitoring", "maintenance_tracking"].includes(section)
       ) {
         const key = String(lastMaintenanceTnl);
         const parsedTracking = parseMaintenanceTrackingLine(
@@ -385,7 +390,7 @@ export function parseReport({
         }
       }
       if (
-        ["maintenance", "maintenance_prod", "maintenance_monitoring", "setup_active", "setup_start", "adjustment", "future"].includes(section) &&
+        ["maintenance", "maintenance_prod", "maintenance_monitoring", "maintenance_tracking", "setup_active", "setup_start", "adjustment", "future"].includes(section) &&
         !isNA(line)
       ) {
         state.reviewLines.push(`${SECTION_LABELS[section] || section}: ${line}`);
@@ -396,6 +401,22 @@ export function parseReport({
     const concluded = line.includes("✅");
     const emoji = extractEmoji(line);
     const reason = extractReason(line);
+    if (section === "maintenance_tracking") {
+      lastMaintenanceTnl = tnl;
+      if (reason) {
+        state.reasons.maintenance[String(tnl)] = uniqueStrings([
+          ...(state.reasons.maintenance[String(tnl)] || []),
+          reason,
+        ]);
+      }
+      ensureMaintenanceCase(state, {
+        tnl,
+        reason,
+        sourceSection: "maintenance_tracking",
+        originalLine: line,
+      });
+      return;
+    }
     if (["maintenance", "maintenance_prod"].includes(section)) {
       lastMaintenanceTnl = tnl;
       if (reason) {
