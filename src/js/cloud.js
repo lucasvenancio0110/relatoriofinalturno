@@ -59,6 +59,7 @@ export function buildCloudPayload({ state, fields, report, trigger, storage, now
       texto_original: record.rawText,
     })),
     confirmed_decisions: Object.values(state.confirmedDecisions),
+    maintenance_cases: Object.values(state.maintenanceCases || {}),
     completed: state.completed,
     saved_at_client: now.toISOString(),
   };

@@ -29,6 +29,8 @@ test("payload de nuvem contém relatório, campos, máquinas e decisões", () =>
   assert.equal(payload.relatorio_final, report);
   assert.equal(payload.relatorio_bruto, fullReport);
   assert.ok(payload.maquinas.length >= 7);
+  assert.ok(Array.isArray(payload.maintenance_cases));
+  assert.ok(payload.maintenance_cases.length >= 3);
   assert.match(payload.device_id, /^device_/);
 });
 

@@ -1,4 +1,5 @@
 import { ACTIVE_TYPES, CELL_ORDER, GENERAL_CELL, UNMAPPED_CELL } from "./config.js";
+import { normalizeMaintenanceCases } from "./maintenance.js";
 import { cellForTnl, deepClone, sortByTnl, uniqueNumbers } from "./utils.js";
 
 export function createEmptyState() {
@@ -10,6 +11,7 @@ export function createEmptyState() {
     generalInfoItems: [],
     reviewLines: [],
     reasons: { maintenance: {}, adjustment: {} },
+    maintenanceCases: {},
     completed: { adjustments: [], setups: [], maintenances: [] },
     reviewedTnls: {},
     resolvedConflicts: {},
@@ -43,6 +45,7 @@ export function hydrateState(saved) {
     reviewedTnls: { ...(source.reviewedTnls || {}) },
     resolvedConflicts: { ...(source.resolvedConflicts || {}) },
     confirmedDecisions: { ...(source.confirmedDecisions || {}) },
+    maintenanceCases: normalizeMaintenanceCases(source.maintenanceCases || {}),
     records: [...(source.records || [])],
     futureItems: [...(source.futureItems || [])],
     devObsItems: [...(source.devObsItems || [])],
@@ -68,7 +71,9 @@ export function recordsOfTnl(state, tnl) {
 }
 
 export function categoryOfType(type) {
-  if (["maintenance", "maintenance_prod"].includes(type)) return "maintenance";
+  if (["maintenance", "maintenance_prod", "maintenance_completed", "maintenance_monitoring"].includes(type)) {
+    return "maintenance";
+  }
   if (["setup_active", "setup_start"].includes(type)) return "setup";
   if (type === "adjustment") return "adjustment";
   return "";
@@ -222,6 +227,7 @@ export function snapshotSubject(state, subjectKey) {
       maintenance: deepClone(state.reasons.maintenance[String(tnl)] || []),
       adjustment: state.reasons.adjustment[String(tnl)] || "",
     },
+    maintenanceCase: deepClone(state.maintenanceCases?.[String(tnl)]),
   };
 }
 
@@ -270,6 +276,12 @@ export function restoreSnapshot(state, snapshot) {
   snapshot.reasons?.adjustment
     ? (state.reasons.adjustment[String(tnl)] = snapshot.reasons.adjustment)
     : delete state.reasons.adjustment[String(tnl)];
+  if (!state.maintenanceCases || typeof state.maintenanceCases !== "object") {
+    state.maintenanceCases = {};
+  }
+  snapshot.maintenanceCase
+    ? (state.maintenanceCases[String(tnl)] = deepClone(snapshot.maintenanceCase))
+    : delete state.maintenanceCases[String(tnl)];
 }
 
 export function commitDecision(state, { subjectKey, tnl = null, kind, action, detail, before, general = false }) {

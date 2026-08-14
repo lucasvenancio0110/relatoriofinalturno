@@ -5,10 +5,16 @@ import { spawnSync } from "node:child_process";
 const root = resolve(import.meta.dirname, "..");
 const indexPath = join(root, "index.html");
 const html = readFileSync(indexPath, "utf8");
+const appSource = readFileSync(join(root, "src", "js", "app.js"), "utf8");
 
 const ids = [...html.matchAll(/\bid=["']([^"']+)["']/g)].map((match) => match[1]);
 const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
 if (duplicates.length) throw new Error(`IDs HTML duplicados: ${[...new Set(duplicates)].join(", ")}`);
+const referencedIds = [...appSource.matchAll(/\bbyId\(["']([^"']+)["']\)/g)].map(
+  (match) => match[1],
+);
+const missingIds = [...new Set(referencedIds.filter((id) => !ids.includes(id)))];
+if (missingIds.length) throw new Error(`IDs usados no app e ausentes no HTML: ${missingIds.join(", ")}`);
 if (/\sonclick\s*=|\sonchange\s*=|\sonsubmit\s*=/i.test(html)) {
   throw new Error("Eventos inline não são permitidos na arquitetura modular.");
 }

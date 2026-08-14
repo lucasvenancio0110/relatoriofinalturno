@@ -15,5 +15,11 @@ test("HTML usa módulos e não contém senha em texto aberto", () => {
 test("viewport permite zoom e diálogos possuem semântica nativa", () => {
   assert.doesNotMatch(html, /user-scalable\s*=\s*no/i);
   assert.doesNotMatch(html, /maximum-scale\s*=\s*1/i);
-  assert.ok((html.match(/<dialog\b/g) || []).length >= 3);
+  assert.ok((html.match(/<dialog\b/g) || []).length >= 4);
+  assert.match(html, /id="maintenanceCallOrigin"/);
+  assert.match(html, /id="maintenanceServiceStatus"/);
+  assert.match(html, /id="maintenanceMachineOutcome"/);
+  ["LIBERADA", "EM ACOMPANHAMENTO", "CONTINUA PARADA", "PASSOU PARA AJUSTE", "PASSOU PARA SETUP"].forEach(
+    (option) => assert.ok(html.includes(option), `Resultado ausente: ${option}`),
+  );
 });
