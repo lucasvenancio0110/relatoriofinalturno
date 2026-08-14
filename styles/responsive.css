@@ -1,0 +1,142 @@
+@media (max-width: 920px) {
+  .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .cell-overview {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 680px) {
+  .app {
+    width: min(calc(100% - 18px), var(--content));
+    padding-top: max(9px, env(safe-area-inset-top));
+  }
+
+  .hero {
+    padding: 16px;
+    border-radius: 18px;
+  }
+
+  .brand-lockup {
+    grid-template-columns: auto 1fr;
+    gap: 11px;
+  }
+
+  .logo-mark {
+    width: 48px;
+    height: 48px;
+  }
+
+  .theme-toggle {
+    grid-column: 1 / -1;
+    justify-self: stretch;
+    justify-content: center;
+    min-height: 38px;
+  }
+
+  .kpi-row {
+    margin-top: 13px;
+    gap: 7px;
+  }
+
+  .kpi {
+    min-height: 64px;
+    padding: 8px;
+  }
+
+  .kpi span {
+    font-size: 0.62rem;
+  }
+
+  .kpi strong {
+    font-size: 1.3rem;
+  }
+
+  .app-tabs {
+    margin: 9px 0;
+  }
+
+  .tab-btn {
+    min-height: 42px;
+    font-size: 0.72rem;
+  }
+
+  .form-grid,
+  .info-grid,
+  .machine-list {
+    grid-template-columns: 1fr;
+  }
+
+  .cell-overview {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    padding: 13px;
+  }
+
+  .section-heading,
+  .report-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 15px;
+  }
+
+  .report-toolbar {
+    padding-inline: 0;
+  }
+
+  .section-heading .btn,
+  .report-toolbar .btn {
+    width: 100%;
+  }
+
+  .cell-field,
+  .progress-wrap,
+  .machine-list {
+    padding-inline: 13px;
+  }
+
+  .round-actions,
+  .details-actions {
+    padding-inline: 13px;
+  }
+
+  .round-actions .btn,
+  .details-actions .btn,
+  .page-actions .btn {
+    width: 100%;
+  }
+
+  .report-shell {
+    padding: 0 13px 13px;
+  }
+
+  .wa-chat-area {
+    min-height: 500px;
+    padding: 10px;
+  }
+
+  .wa-message {
+    font-size: 0.81rem;
+  }
+
+  .modal {
+    width: min(calc(100% - 14px), 560px);
+    max-height: calc(100dvh - 14px);
+  }
+
+  .modal-card {
+    padding: 18px;
+    border-radius: 19px;
+  }
+}
+
+@media (max-width: 390px) {
+  .cell-overview {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .access-card {
+    padding: 25px 18px;
+  }
+}

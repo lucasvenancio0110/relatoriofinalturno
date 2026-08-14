@@ -1,0 +1,249 @@
+<!doctype html>
+<html lang="pt-BR" data-theme="dark">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta
+      name="description"
+      content="VENANC Tools — preparação, ronda e relatório final de turno."
+    />
+    <meta name="theme-color" content="#07100e" />
+    <title>VENANC Tools — Relatório Final de Turno</title>
+    <link rel="stylesheet" href="./styles/tokens.css" />
+    <link rel="stylesheet" href="./styles/base.css" />
+    <link rel="stylesheet" href="./styles/components.css" />
+    <link rel="stylesheet" href="./styles/responsive.css" />
+  </head>
+  <body class="auth-locked">
+    <section class="access-screen" id="accessScreen" aria-labelledby="accessTitle">
+      <form class="access-card" id="accessForm" autocomplete="off">
+        <div class="access-icon" aria-hidden="true">🔒</div>
+        <h1 id="accessTitle">Acesso restrito</h1>
+        <p>VENANC Tools — Relatório Final de Turno</p>
+        <label class="sr-only" for="accessPassword">Senha de acesso</label>
+        <input
+          id="accessPassword"
+          class="input"
+          type="password"
+          inputmode="numeric"
+          pattern="[0-9]*"
+          placeholder="Digite a senha"
+          required
+        />
+        <button class="btn btn-primary" type="submit">ENTRAR</button>
+        <p class="access-error" id="accessError" role="alert"></p>
+      </form>
+    </section>
+
+    <main class="app" id="app">
+      <header class="hero glass">
+        <div class="brand-lockup">
+          <div class="logo-mark" aria-hidden="true">
+            <svg viewBox="0 0 96 96">
+              <defs>
+                <linearGradient id="logoStroke" x1="12" y1="10" x2="82" y2="86">
+                  <stop offset="0" stop-color="#f6e9f8" />
+                  <stop offset="0.6" stop-color="#8a2a8c" />
+                  <stop offset="1" stop-color="#8c8f94" />
+                </linearGradient>
+              </defs>
+              <path d="M48 9 81 27v38L48 87 15 65V27L48 9Z" fill="#07100e" stroke="url(#logoStroke)" stroke-width="5" stroke-linejoin="round" />
+              <path d="M28 31h14l7 27 7-27h14L58 68H40L28 31Z" fill="url(#logoStroke)" />
+              <path d="M24 48h48M48 18v12M48 66v12" fill="none" stroke="#fff" stroke-width="4" stroke-linecap="round" opacity=".72" />
+              <circle cx="48" cy="48" r="25" fill="none" stroke="#8c8f94" stroke-width="3" stroke-dasharray="5 7" opacity=".85" />
+            </svg>
+          </div>
+          <div class="brand-copy">
+            <p class="eyebrow">VENANC TOOLS</p>
+            <h1>Relatório final de turno</h1>
+          </div>
+          <button
+            class="theme-toggle"
+            id="themeToggle"
+            type="button"
+            aria-label="Alternar entre modo claro e escuro"
+            aria-pressed="false"
+          >
+            <span id="themeIcon">🌙</span>
+            <span id="themeLabel">Escuro</span>
+          </button>
+        </div>
+
+        <div class="kpi-row" aria-label="Indicadores da ronda">
+          <div class="kpi"><span>Pendências</span><strong id="kpiPending">0</strong></div>
+          <div class="kpi"><span>Conflitos</span><strong id="kpiConflicts">0</strong></div>
+          <div class="kpi"><span>Concluídas</span><strong id="kpiCompleted">0</strong></div>
+        </div>
+      </header>
+
+      <nav class="app-tabs" role="tablist" aria-label="Navegação principal">
+        <button class="tab-btn active" id="tabDados" type="button" role="tab" aria-selected="true" aria-controls="panelDados" data-tab="dados">DADOS</button>
+        <button class="tab-btn" id="tabRonda" type="button" role="tab" aria-selected="false" aria-controls="panelRonda" data-tab="ronda">RONDA</button>
+        <button class="tab-btn" id="tabRelatorio" type="button" role="tab" aria-selected="false" aria-controls="panelRelatorio" data-tab="relatorio">RELATÓRIO</button>
+      </nav>
+
+      <section class="tab-panel active" id="panelDados" role="tabpanel" aria-labelledby="tabDados" data-panel="dados">
+        <details class="card glass" open>
+          <summary>Dados do fechamento</summary>
+          <div class="details-body form-grid">
+            <div class="field">
+              <label for="currentShift">Turno atual</label>
+              <select id="currentShift" class="select">
+                <option value="1">1° TURNO</option>
+                <option value="2" selected>2° TURNO</option>
+                <option value="3">3° TURNO</option>
+              </select>
+            </div>
+            <div class="field">
+              <label for="nextShift">Próximo turno</label>
+              <select id="nextShift" class="select">
+                <option value="1">1° TURNO</option>
+                <option value="2">2° TURNO</option>
+                <option value="3" selected>3° TURNO</option>
+              </select>
+            </div>
+            <div class="field"><label for="checkpoint">Bancada</label><input id="checkpoint" class="input" value="00" /></div>
+            <div class="field"><label for="cqFechamento">CQ Fechamento</label><input id="cqFechamento" class="input" value="00" /></div>
+            <div class="field"><label for="cqReinspecao">CQ Reinspeção</label><input id="cqReinspecao" class="input" value="00" /></div>
+            <div class="field"><label for="sel1">Seleção 1°T</label><input id="sel1" class="input" value="00" /></div>
+            <div class="field"><label for="sel2">Seleção 2°T</label><input id="sel2" class="input" value="00" /></div>
+            <div class="field"><label for="sel3">Seleção 3°T</label><input id="sel3" class="input" value="00" /></div>
+            <div class="field"><label for="selAll">Os 3 turnos</label><input id="selAll" class="input" value="00" /></div>
+            <div class="field"><label for="selTnc">Seleção TNC</label><input id="selTnc" class="input" value="00" /></div>
+          </div>
+        </details>
+
+        <details class="card glass" open>
+          <summary>Relatório do grupo</summary>
+          <div class="details-body">
+            <label class="sr-only" for="rawInput">Relatório bruto do grupo</label>
+            <textarea id="rawInput" class="textarea textarea-large" placeholder="Cole aqui o último relatório atualizado do grupo..."></textarea>
+            <div id="parserWarning" aria-live="polite"></div>
+          </div>
+        </details>
+
+        <details class="card glass" open>
+          <summary>Desenvolvimento e observações</summary>
+          <div class="details-body info-grid">
+            <div class="field">
+              <label for="development">Desenvolvimento</label>
+              <textarea id="development" class="textarea" placeholder="TNL 006 - PROGRAMAÇÃO"></textarea>
+            </div>
+            <div class="field">
+              <label for="observations">Observações</label>
+              <textarea id="observations" class="textarea" placeholder="TNL 043 - Teste de ferramenta"></textarea>
+            </div>
+          </div>
+          <div class="details-actions">
+            <button class="btn btn-primary" id="btnImport" type="button">PREPARAR PASSAGEM</button>
+            <button class="btn btn-danger" id="btnClear" type="button">LIMPAR</button>
+          </div>
+        </details>
+      </section>
+
+      <section class="tab-panel" id="panelRonda" role="tabpanel" aria-labelledby="tabRonda" data-panel="ronda" hidden>
+        <section class="card glass round-shell">
+          <div class="section-heading">
+            <div><p class="eyebrow">CONFERÊNCIA OPERACIONAL</p><h2>Passagem por célula</h2></div>
+            <button class="btn btn-success" id="btnOpenAdd" type="button">+ ADICIONAR MÁQUINA</button>
+          </div>
+          <div class="field cell-field">
+            <label for="cellSelect">Célula</label>
+            <select id="cellSelect" class="select"></select>
+          </div>
+          <div class="cell-overview" id="cellOverview" aria-label="Resumo por célula"></div>
+          <div class="progress-wrap">
+            <div class="progress" aria-hidden="true"><span id="progressFill"></span></div>
+            <p id="progressLabel">Prepare a passagem para iniciar a ronda.</p>
+          </div>
+          <div class="round-actions">
+            <button class="btn btn-soft" id="btnUndo" type="button">DESFAZER ÚLTIMA AÇÃO</button>
+          </div>
+          <div class="machine-list" id="machineList"></div>
+        </section>
+
+        <details class="card glass confirmed-shell">
+          <summary>Decisões confirmadas <span id="confirmedCount">— 00</span></summary>
+          <div class="details-body confirmed-list" id="confirmedList"></div>
+        </details>
+
+        <div class="page-actions">
+          <button class="btn btn-primary" id="btnGoReport" type="button">CONFERIR RELATÓRIO</button>
+          <button class="btn btn-soft" id="btnBackDados" type="button">VOLTAR AOS DADOS</button>
+        </div>
+      </section>
+
+      <section class="tab-panel" id="panelRelatorio" role="tabpanel" aria-labelledby="tabRelatorio" data-panel="relatorio" hidden>
+        <section class="report-shell glass">
+          <div class="report-toolbar">
+            <div><p class="eyebrow">PRÉVIA FINAL</p><h2>Mensagem para WhatsApp</h2></div>
+            <button class="btn btn-primary" id="btnCopy" type="button">COPIAR RELATÓRIO</button>
+          </div>
+          <div class="wa-phone" aria-label="Prévia do relatório no estilo WhatsApp">
+            <div class="wa-chat-title">Prévia WhatsApp</div>
+            <div class="wa-chat-area"><div id="finalPreview" class="wa-message"></div></div>
+          </div>
+          <textarea id="finalOutput" class="sr-only" readonly tabindex="-1"></textarea>
+        </section>
+        <div class="page-actions"><button class="btn btn-soft" id="btnBackRonda" type="button">VOLTAR PARA RONDA</button></div>
+      </section>
+    </main>
+
+    <button class="floating-copy" id="btnCopyFloating" type="button" aria-label="Copiar relatório">⧉</button>
+
+    <dialog class="modal" id="decisionDialog" aria-labelledby="decisionTitle">
+      <div class="modal-card">
+        <div class="modal-handle" aria-hidden="true"></div>
+        <h2 id="decisionTitle">Confirmar decisão</h2>
+        <p id="decisionSubtitle"></p>
+        <div id="decisionSource"></div>
+        <div class="modal-actions" id="decisionActions"></div>
+        <button class="btn btn-soft dialog-cancel" id="decisionCancel" type="button">CANCELAR</button>
+      </div>
+    </dialog>
+
+    <dialog class="modal" id="textDialog" aria-labelledby="textDialogTitle">
+      <form class="modal-card" id="textDialogForm" method="dialog">
+        <div class="modal-handle" aria-hidden="true"></div>
+        <h2 id="textDialogTitle">Informar motivo</h2>
+        <p id="textDialogSubtitle"></p>
+        <label class="sr-only" for="textDialogInput">Motivo</label>
+        <textarea id="textDialogInput" class="textarea" placeholder="Digite o motivo..."></textarea>
+        <div class="modal-actions">
+          <button class="btn btn-primary" id="textDialogSave" value="save">SALVAR</button>
+          <button class="btn btn-soft" value="cancel">CANCELAR</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal" id="addDialog" aria-labelledby="addDialogTitle">
+      <form class="modal-card" id="addForm" method="dialog">
+        <div class="modal-handle" aria-hidden="true"></div>
+        <h2 id="addDialogTitle">Adicionar máquina</h2>
+        <div class="field"><label for="addMachine">Máquina</label><input id="addMachine" class="input" inputmode="numeric" placeholder="Ex.: 048" /></div>
+        <div class="field">
+          <label for="addStatus">Status</label>
+          <select id="addStatus" class="select">
+            <option value="adjustment">VAI PASSAR EM AJUSTE</option>
+            <option value="setup_start">INICIAR SETUP</option>
+            <option value="setup_active">VAI PASSAR EM SETUP</option>
+            <option value="setup_future">SETUP PRÓXIMO TURNO</option>
+            <option value="maintenance">VAI PASSAR EM MANUTENÇÃO</option>
+            <option value="maintenance_prod">MANUTENÇÃO PRODUZINDO</option>
+            <option value="development">DESENVOLVIMENTO</option>
+            <option value="observation">OBSERVAÇÃO</option>
+          </select>
+        </div>
+        <div class="field"><label for="addReason">Motivo</label><input id="addReason" class="input" placeholder="Motivo ou informação" /></div>
+        <div class="modal-actions">
+          <button class="btn btn-primary" id="addSave" value="save">SALVAR</button>
+          <button class="btn btn-soft" value="cancel">CANCELAR</button>
+        </div>
+      </form>
+    </dialog>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+    <script type="module" src="./src/js/app.js"></script>
+  </body>
+</html>
