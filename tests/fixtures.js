@@ -1,0 +1,45 @@
+export const fullReport = `*MÁQUINAS EM MANUTENÇÃO PARADA:*
+TNL 019 - QUEBRA DE BEDAME
+TNL 048 - FALHA DE SENSOR
+
+*MÁQUINAS EM MANUTENÇÃO PRODUZINDO:*
+TNL 025 - AGUARDANDO TÉCNICO
+
+*SETUP:*
+🔴 TNL 019 - EM SETUP
+🟢 TNL 024 - EM SETUP
+
+*PRÓXIMOS SETUPS:*
+🔵 TNL 030 - INICIAR SETUP
+
+*MAQUINAS EM AJUSTES:*
+TNL 043 - VARIAÇÃO DE MEDIDA
+
+*SETUPS 3°T:*
+🔴 TNL 055 - SETUP 3°T
+🔴 TNL 999 - SETUP 3°T
+
+*DESENVOLVIMENTO:*
+TNL 006 - PROGRAMAÇÃO
+DESENVOLVIMENTO GERAL SEM MÁQUINA
+
+*OBSERVAÇÕES:*
+TNL 043 - TESTE DE FERRAMENTA
+(514112)
+TNL's - 055 - 056 - SEM ORDEM
+OBSERVAÇÃO GERAL SEM TNL`;
+
+export const defaultFields = {
+  currentShift: "2",
+  nextShift: "3",
+  checkpoint: "00",
+  cqFechamento: "00",
+  cqReinspecao: "00",
+  sel1: "00",
+  sel2: "00",
+  sel3: "00",
+  selAll: "00",
+  selTnc: "00",
+  development: "",
+  observations: "",
+};
