@@ -22,6 +22,8 @@ bloco de manutenções concluídas. O fluxo registra o turno que abriu o chamado
 condicionais de abertura/chegada/término e uma das situações finais: liberada, em
 acompanhamento, continua parada, passou para ajuste ou passou para setup. As atualizações
 permanecem vinculadas à TNL e podem ser refeitas sem perder a linha do tempo já registrada.
+No relatório final, as listas operacionais permanecem compactas e o histórico de chamado,
+atuação e resultado aparece agrupado por máquina em `DETALHAMENTO DAS MANUTENÇÕES`.
 
 ## Validação local
 

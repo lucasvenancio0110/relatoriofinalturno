@@ -244,9 +244,9 @@ export function maintenanceTrackingLines(item, currentShift) {
     lines.push("🔧 Situação do atendimento não confirmada.");
   }
 
-  lines.push(`Situação: ${MACHINE_OUTCOMES[value.machineOutcome] || "NÃO CONFIRMADA"}.`);
-  if (value.monitoringDetails) lines.push(`Acompanhar: ${value.monitoringDetails}`);
-  if (value.details) lines.push(`Detalhes da atuação: ${value.details}`);
+  lines.push(`📍 Como ficou: ${MACHINE_OUTCOMES[value.machineOutcome] || "NÃO CONFIRMADA"}.`);
+  if (value.monitoringDetails) lines.push(`👁️ Acompanhar: ${value.monitoringDetails}`);
+  if (value.details) lines.push(`📝 Detalhes da atuação: ${value.details}`);
   return lines;
 }
 
@@ -256,12 +256,27 @@ export function maintenanceReason(item, fallback = "MANUTENÇÃO") {
 
 export function maintenanceReportEntry(item, currentShift, { completed = false } = {}) {
   const value = normalizeMaintenanceCase(item);
-  const prefix = completed ? "✅ " : "";
-  return `${prefix}TNL ${padTnl(value.tnl)} - ${maintenanceReason(value)}${
+  return `${maintenanceSummaryEntry(value, { completed })}${
     maintenanceTrackingLines(value, currentShift).length
       ? `\n${maintenanceTrackingLines(value, currentShift).join("\n")}`
       : ""
   }`;
+}
+
+export function maintenanceSummaryEntry(item, { completed = false } = {}) {
+  const value = normalizeMaintenanceCase(item);
+  const prefix = completed ? "✅ " : "";
+  return `${prefix}TNL ${padTnl(value.tnl)} - ${maintenanceReason(value)}`;
+}
+
+export function maintenanceTrackingReportEntry(item, currentShift) {
+  const value = normalizeMaintenanceCase(item);
+  const lines = maintenanceTrackingLines(value, currentShift);
+  if (!lines.length) return "";
+  return [
+    `*${maintenanceSummaryEntry(value)}*`,
+    ...lines.map((line, index) => `${index === lines.length - 1 ? "└─" : "├─"} ${line}`),
+  ].join("\n");
 }
 
 export function maintenanceDecisionDetail(item, currentShift) {
@@ -356,7 +371,7 @@ export function parseMaintenanceTrackingLine(item, line, currentShift) {
     update = { serviceStatus: "resolved_without" };
   } else if (/^Situacao do atendimento nao confirmada/i.test(normalized)) {
     update = { serviceStatus: "unknown" };
-  } else if ((match = normalized.match(/^Situacao:\s*(.+?)[.]?$/i))) {
+  } else if ((match = normalized.match(/^(?:Situacao|Como ficou):\s*(.+?)[.]?$/i))) {
     const outcome = Object.entries(MACHINE_OUTCOMES).find(
       ([, label]) => normalizeText(label).toUpperCase() === match[1].replace(/[.]+$/, "").trim().toUpperCase(),
     )?.[0];

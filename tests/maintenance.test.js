@@ -77,7 +77,7 @@ test("caso de manutenção mantém origem, horários, resultado e texto rastreá
   assert.equal(maintenanceReportBucket(item), "monitoring");
   assert.match(maintenanceDecisionDetail(item, 2), /Chamado aberto pelo 2º turno às 16:10/);
   assert.match(maintenanceDecisionDetail(item, 2), /Manutenção atuou de 17:05 até 17:40/);
-  assert.match(maintenanceDecisionDetail(item, 2), /Situação: EM ACOMPANHAMENTO/);
+  assert.match(maintenanceDecisionDetail(item, 2), /Como ficou: EM ACOMPANHAMENTO/);
   assert.match(maintenanceDecisionDetail(item, 2), /Acompanhar: Medida após a troca do bedame/);
 });
 
