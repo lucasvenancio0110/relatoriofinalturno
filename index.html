@@ -211,7 +211,98 @@
         <textarea id="textDialogInput" class="textarea" placeholder="Digite o motivo..."></textarea>
         <div class="modal-actions">
           <button class="btn btn-primary" id="textDialogSave" value="save">SALVAR</button>
-          <button class="btn btn-soft" value="cancel">CANCELAR</button>
+          <button class="btn btn-soft" value="cancel" formnovalidate>CANCELAR</button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog class="modal modal-wide" id="maintenanceDialog" aria-labelledby="maintenanceDialogTitle">
+      <form class="modal-card" id="maintenanceForm" method="dialog">
+        <div class="modal-handle" aria-hidden="true"></div>
+        <div>
+          <p class="eyebrow">ACOMPANHAMENTO E RASTREABILIDADE</p>
+          <h2 id="maintenanceDialogTitle">Manutenção</h2>
+        </div>
+        <div class="maintenance-origin" id="maintenanceSourceSummary"></div>
+
+        <div class="maintenance-grid">
+          <div class="field">
+            <label for="maintenanceCallOrigin">Quem abriu o chamado?</label>
+            <select class="select" id="maintenanceCallOrigin" required>
+              <option value="">SELECIONE</option>
+              <option value="previous" id="maintenancePreviousShift">TURNO ANTERIOR</option>
+              <option value="current" id="maintenanceCurrentShift">NOSSO TURNO</option>
+              <option value="not_opened">CHAMADO AINDA NÃO FOI ABERTO</option>
+              <option value="unknown">NÃO CONSEGUI CONFIRMAR</option>
+            </select>
+          </div>
+
+          <div class="field" id="maintenanceOpenedField" hidden>
+            <label for="maintenanceOpenedAt">Horário de abertura</label>
+            <div class="time-entry">
+              <input class="input" id="maintenanceOpenedAt" type="time" step="60" />
+              <button class="btn btn-soft btn-small" type="button" data-now-target="maintenanceOpenedAt">AGORA</button>
+            </div>
+            <label class="check-line"><input id="maintenanceOpenedUnknown" type="checkbox" /> NÃO INFORMADO</label>
+          </div>
+
+          <div class="field maintenance-span">
+            <label for="maintenanceServiceStatus">Qual é a situação da manutenção agora?</label>
+            <select class="select" id="maintenanceServiceStatus" required>
+              <option value="">SELECIONE</option>
+              <option value="waiting">MANUTENÇÃO AINDA NÃO CHEGOU</option>
+              <option value="working">MANUTENÇÃO ESTÁ ATUANDO</option>
+              <option value="completed">ATENDIMENTO FINALIZADO</option>
+              <option value="resolved_without">PROBLEMA RESOLVIDO SEM MANUTENÇÃO</option>
+              <option value="unknown">NÃO CONSEGUI CONFIRMAR</option>
+            </select>
+          </div>
+
+          <div class="field" id="maintenanceArrivedField" hidden>
+            <label for="maintenanceArrivedAt">Horário em que chegou</label>
+            <div class="time-entry">
+              <input class="input" id="maintenanceArrivedAt" type="time" step="60" />
+              <button class="btn btn-soft btn-small" type="button" data-now-target="maintenanceArrivedAt">AGORA</button>
+            </div>
+            <label class="check-line"><input id="maintenanceArrivedUnknown" type="checkbox" /> NÃO INFORMADO</label>
+          </div>
+
+          <div class="field" id="maintenanceFinishedField" hidden>
+            <label for="maintenanceFinishedAt">Horário em que terminou</label>
+            <div class="time-entry">
+              <input class="input" id="maintenanceFinishedAt" type="time" step="60" />
+              <button class="btn btn-soft btn-small" type="button" data-now-target="maintenanceFinishedAt">AGORA</button>
+            </div>
+            <label class="check-line"><input id="maintenanceFinishedUnknown" type="checkbox" /> NÃO INFORMADO</label>
+          </div>
+
+          <div class="field maintenance-span">
+            <label for="maintenanceMachineOutcome">Como a máquina ficou?</label>
+            <select class="select" id="maintenanceMachineOutcome" required>
+              <option value="">SELECIONE</option>
+              <option value="released">LIBERADA</option>
+              <option value="monitoring">EM ACOMPANHAMENTO</option>
+              <option value="stopped">CONTINUA PARADA</option>
+              <option value="adjustment">PASSOU PARA AJUSTE</option>
+              <option value="setup">PASSOU PARA SETUP</option>
+            </select>
+          </div>
+
+          <div class="field maintenance-span" id="maintenanceMonitoringField" hidden>
+            <label for="maintenanceMonitoringDetails">O que precisa ser acompanhado?</label>
+            <textarea class="textarea textarea-compact" id="maintenanceMonitoringDetails" placeholder="Ex.: acompanhar medida após a troca da ferramenta"></textarea>
+          </div>
+
+          <div class="field maintenance-span">
+            <label for="maintenanceDetails">Detalhes da atuação <span class="optional">(opcional)</span></label>
+            <textarea class="textarea textarea-compact" id="maintenanceDetails" placeholder="Ex.: sensor substituído e máquina testada"></textarea>
+          </div>
+        </div>
+
+        <p class="form-error" id="maintenanceFormError" role="alert"></p>
+        <div class="modal-actions modal-actions-row">
+          <button class="btn btn-primary" id="maintenanceSave" value="save">SALVAR ACOMPANHAMENTO</button>
+          <button class="btn btn-soft" value="cancel" formnovalidate>CANCELAR</button>
         </div>
       </form>
     </dialog>

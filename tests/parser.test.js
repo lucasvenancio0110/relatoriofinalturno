@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import { cellForTnl } from "../src/js/utils.js";
 import { hasConflict, kpis, progressForCell } from "../src/js/model.js";
 import { parseReport } from "../src/js/parser.js";
-import { fullReport } from "./fixtures.js";
+import { fullReport, maintenanceLifecycleReport } from "./fixtures.js";
 
 test("parser preserva todos os blocos operacionais e informações", () => {
   const { state, development, observations } = parseReport({ raw: fullReport, nextShift: 3 });
@@ -42,4 +42,25 @@ test("parser preserva o motivo importado de ajuste", () => {
   const adjustment = state.records.find((item) => item.type === "adjustment");
   assert.equal(adjustment.displayText, "TNL 043 - VARIAÇÃO DE MEDIDA");
   assert.equal(state.reasons.adjustment["43"], "VARIAÇÃO DE MEDIDA");
+});
+
+test("parser leva manutenções com check e bloco concluído para confirmação na ronda", () => {
+  const { state } = parseReport({ raw: maintenanceLifecycleReport, nextShift: 3 });
+  const concludedRecords = state.records.filter((item) => item.type === "maintenance_completed");
+
+  assert.deepEqual(
+    concludedRecords.map((item) => item.tnl).sort((a, b) => a - b),
+    [19, 43, 143],
+  );
+  assert.equal(state.records.filter((item) => item.type === "maintenance").length, 1);
+  assert.equal(state.records.filter((item) => item.type === "maintenance_prod").length, 1);
+  assert.equal(Object.keys(state.maintenanceCases).length, 5);
+  assert.equal(state.maintenanceCases["19"].reportedCompleted, true);
+  assert.equal(state.maintenanceCases["43"].reportedCompleted, true);
+  assert.equal(state.maintenanceCases["143"].reportedCompleted, true);
+  assert.equal(state.completed.maintenances.length, 0);
+  assert.equal(kpis(state).pending, 5);
+  assert.equal(progressForCell(state, "01").pending, 3);
+  assert.equal(progressForCell(state, "02").pending, 1);
+  assert.equal(progressForCell(state, "03").pending, 1);
 });

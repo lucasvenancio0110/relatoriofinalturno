@@ -1,4 +1,9 @@
 import { activeRecords } from "./model.js";
+import {
+  maintenanceCaseOf,
+  maintenanceReportBucket,
+  maintenanceReportEntry,
+} from "./maintenance.js";
 import { nextTurnHeading, padTnl, sortByTnl, uniqueNumbers, uniqueStrings } from "./utils.js";
 
 function formatList(lines) {
@@ -37,12 +42,33 @@ export function observationLines(state) {
 
 export function generateReport(state, fields) {
   const records = activeRecords(state);
-  const maintenance = sortByTnl(records.filter((item) => item.type === "maintenance")).map(
-    (item) => item.displayText,
+  const trackedLine = (record) => {
+    const item = maintenanceCaseOf(state, record.tnl);
+    return item?.reviewed
+      ? maintenanceReportEntry(item, fields.currentShift)
+      : record.displayText;
+  };
+  const maintenance = uniqueStrings(
+    sortByTnl(records.filter((item) => item.type === "maintenance")).map(trackedLine),
   );
-  const producing = sortByTnl(records.filter((item) => item.type === "maintenance_prod")).map(
-    (item) => item.displayText,
+  const producing = uniqueStrings(
+    sortByTnl(records.filter((item) => item.type === "maintenance_prod")).map(trackedLine),
   );
+  const maintenanceCases = Object.values(state.maintenanceCases || {});
+  const monitoring = sortByTnl(
+    maintenanceCases.filter((item) => maintenanceReportBucket(item) === "monitoring"),
+  ).map((item) => maintenanceReportEntry(item, fields.currentShift));
+  const completedCases = sortByTnl(
+    maintenanceCases.filter((item) => maintenanceReportBucket(item) === "completed"),
+  );
+  const completedCaseTnls = new Set(completedCases.map((item) => Number(item.tnl)));
+  const legacyCompleted = uniqueNumbers(state.completed.maintenances).filter(
+    (tnl) => !completedCaseTnls.has(Number(tnl)),
+  );
+  const completedMaintenance = [
+    ...completedCases.map((item) => maintenanceReportEntry(item, fields.currentShift, { completed: true })),
+    ...(legacyCompleted.length ? [`TNL's - ${legacyCompleted.map(padTnl).join(" - ")}.`] : []),
+  ];
   const setup = sortByTnl(
     records.filter((item) => ["setup_active", "setup_start"].includes(item.type)),
   ).map((item) => item.displayText);
@@ -90,6 +116,9 @@ ${formatList(maintenance)}
 *MÁQUINAS EM MANUTENÇÃO PRODUZINDO:*
 ${formatList(producing)}
 
+*MÁQUINAS EM ACOMPANHAMENTO:*
+${formatList(monitoring)}
+
 *SETUP:*
 ${formatList(setup)}
 
@@ -105,7 +134,7 @@ ${formatCompleted(state.completed.adjustments)}
 ${formatCompleted(state.completed.setups)}
 
 *MANUTENÇÕES CONCLUÍDAS:*
-${formatCompleted(state.completed.maintenances)}
+${formatList(completedMaintenance)}
 
 *DESENVOLVIMENTO:*
 ${formatList(developmentLines(state))}

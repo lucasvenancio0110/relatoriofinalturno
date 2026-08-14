@@ -1,4 +1,8 @@
 import { GENERAL_CELL, SECTION_LABELS } from "./config.js";
+import {
+  ensureMaintenanceCase,
+  parseMaintenanceTrackingLine,
+} from "./maintenance.js";
 import { addCompleted, addRecord, createEmptyState, registerLedger } from "./model.js";
 import {
   cellForTnl,
@@ -19,6 +23,8 @@ export function detectSection(line) {
   const header = normalizeHeader(line);
   if (header === "MAQUINAS EM MANUTENCAO PARADA") return { type: "maintenance" };
   if (header === "MAQUINAS EM MANUTENCAO PRODUZINDO") return { type: "maintenance_prod" };
+  if (header === "MANUTENCOES CONCLUIDAS") return { type: "maintenance_completed" };
+  if (header === "MAQUINAS EM ACOMPANHAMENTO") return { type: "maintenance_monitoring" };
   if (["MAQUINAS EM SETUP", "SETUP"].includes(header)) return { type: "setup_active" };
   if (header === "PROXIMOS SETUPS") return { type: "setup_start" };
   const future = header.match(/^SETUPS?\s*([123])\s*T(?:URNO)?$/);
@@ -38,7 +44,6 @@ export function detectSection(line) {
       "CQ REINSPECAO",
       "AJUSTES CONCLUIDOS",
       "SETUPS CONCLUIDOS",
-      "MANUTENCOES CONCLUIDAS",
       "RESTANTE OK",
     ].includes(header)
   ) {
@@ -52,22 +57,43 @@ function recordText(type, tnl, reason, emoji) {
   if (type === "maintenance_prod") {
     return `TNL ${padTnl(tnl)} - ${reason || "MANUTENÇÃO PRODUZINDO"}`;
   }
+  if (type === "maintenance_completed") {
+    return `✅ TNL ${padTnl(tnl)} - ${reason || "MANUTENÇÃO CONCLUÍDA"}`;
+  }
+  if (type === "maintenance_monitoring") {
+    return `TNL ${padTnl(tnl)} - ${reason || "EM ACOMPANHAMENTO"}`;
+  }
   if (type === "setup_active") return `${emoji} TNL ${padTnl(tnl)} - EM SETUP`;
   if (type === "setup_start") return `${emoji} TNL ${padTnl(tnl)} - INICIAR SETUP`;
   if (type === "adjustment") return `TNL ${padTnl(tnl)} - ${reason || "EM AJUSTE"}`;
   return `TNL ${padTnl(tnl)} - REDEFINIR STATUS`;
 }
 
-function createRecord(state, { tnl, type, line, emoji, reason }) {
+function createRecord(state, { tnl, type, line, emoji, reason, sourceSection = type }) {
   return {
     id: state.nextId++,
     tnl: Number(tnl),
     type,
     displayText: recordText(type, tnl, reason, emoji),
     rawText: String(line || "").trim(),
-    sourceSection: type,
+    sourceSection,
     emoji,
   };
+}
+
+function completedMaintenanceEntries(line) {
+  const clean = cleanLine(line).replace(/[.]+$/, "").trim();
+  const grouped = clean.match(/^TNL'?S?\s*-\s*(.+)$/i);
+  if (grouped) {
+    const entries = [];
+    for (const part of grouped[1].split(/\s*-\s*/)) {
+      if (!/^0*\d{1,3}$/.test(part.trim())) break;
+      entries.push({ tnl: Number(part), reason: "" });
+    }
+    if (entries.length) return entries;
+  }
+  const tnl = extractTnl(clean);
+  return tnl ? [{ tnl, reason: extractReason(clean) }] : [];
 }
 
 function isInfoHeader(line) {
@@ -252,13 +278,20 @@ export function rebuildInfoFromFields(state, development, observations) {
   );
 }
 
-export function parseReport({ raw, development = "", observations = "", nextShift = 3 }) {
+export function parseReport({
+  raw,
+  development = "",
+  observations = "",
+  currentShift = 2,
+  nextShift = 3,
+}) {
   const state = createEmptyState();
   state.raw = String(raw || "");
   const rawDevelopment = [];
   const rawObservations = [];
   let section = "ignore";
   let futureHeading = nextTurnHeading(nextShift);
+  let lastMaintenanceTnl = null;
 
   state.raw.split(/\r?\n/).forEach((rawLine) => {
     const line = String(rawLine || "").trim();
@@ -266,6 +299,14 @@ export function parseReport({ raw, development = "", observations = "", nextShif
     const detected = detectSection(line);
     if (detected) {
       section = detected.type;
+      if (![
+        "maintenance",
+        "maintenance_prod",
+        "maintenance_completed",
+        "maintenance_monitoring",
+      ].includes(section)) {
+        lastMaintenanceTnl = null;
+      }
       if (detected.heading) futureHeading = detected.heading;
       return;
     }
@@ -278,10 +319,73 @@ export function parseReport({ raw, development = "", observations = "", nextShif
       return;
     }
 
+    if (section === "maintenance_completed") {
+      const entries = completedMaintenanceEntries(line);
+      if (!entries.length) {
+        if (lastMaintenanceTnl) {
+          const key = String(lastMaintenanceTnl);
+          const parsedTracking = parseMaintenanceTrackingLine(
+            state.maintenanceCases[key],
+            line,
+            currentShift,
+          );
+          if (parsedTracking) {
+            state.maintenanceCases[key] = parsedTracking;
+            return;
+          }
+        }
+        if (!isNA(line)) state.reviewLines.push(`MANUTENÇÕES CONCLUÍDAS: ${line}`);
+        return;
+      }
+      entries.forEach(({ tnl, reason }) => {
+        if (reason) {
+          state.reasons.maintenance[String(tnl)] = uniqueStrings([
+            ...(state.reasons.maintenance[String(tnl)] || []),
+            reason,
+          ]);
+        }
+        addRecord(
+          state,
+          createRecord(state, {
+            tnl,
+            type: "maintenance_completed",
+            line,
+            emoji: "✅",
+            reason,
+            sourceSection: "maintenance_completed",
+          }),
+        );
+        ensureMaintenanceCase(state, {
+          tnl,
+          reason,
+          sourceSection: "maintenance_completed",
+          originalLine: line,
+          reportedCompleted: true,
+        });
+        lastMaintenanceTnl = tnl;
+      });
+      return;
+    }
+
     const tnl = extractTnl(line);
     if (!tnl) {
       if (
-        ["maintenance", "maintenance_prod", "setup_active", "setup_start", "adjustment", "future"].includes(section) &&
+        lastMaintenanceTnl &&
+        ["maintenance", "maintenance_prod", "maintenance_monitoring"].includes(section)
+      ) {
+        const key = String(lastMaintenanceTnl);
+        const parsedTracking = parseMaintenanceTrackingLine(
+          state.maintenanceCases[key],
+          line,
+          currentShift,
+        );
+        if (parsedTracking) {
+          state.maintenanceCases[key] = parsedTracking;
+          return;
+        }
+      }
+      if (
+        ["maintenance", "maintenance_prod", "maintenance_monitoring", "setup_active", "setup_start", "adjustment", "future"].includes(section) &&
         !isNA(line)
       ) {
         state.reviewLines.push(`${SECTION_LABELS[section] || section}: ${line}`);
@@ -293,14 +397,53 @@ export function parseReport({ raw, development = "", observations = "", nextShif
     const emoji = extractEmoji(line);
     const reason = extractReason(line);
     if (["maintenance", "maintenance_prod"].includes(section)) {
+      lastMaintenanceTnl = tnl;
       if (reason) {
         state.reasons.maintenance[String(tnl)] = uniqueStrings([
           ...(state.reasons.maintenance[String(tnl)] || []),
           reason,
         ]);
       }
-      if (concluded) addCompleted(state, tnl, "maintenance");
-      else addRecord(state, createRecord(state, { tnl, type: section, line, emoji, reason }));
+      const type = concluded ? "maintenance_completed" : section;
+      addRecord(
+        state,
+        createRecord(state, { tnl, type, line, emoji, reason, sourceSection: section }),
+      );
+      ensureMaintenanceCase(state, {
+        tnl,
+        reason,
+        sourceSection: section,
+        originalLine: line,
+        reportedCompleted: concluded,
+      });
+      return;
+    }
+    if (section === "maintenance_monitoring") {
+      lastMaintenanceTnl = tnl;
+      if (reason) {
+        state.reasons.maintenance[String(tnl)] = uniqueStrings([
+          ...(state.reasons.maintenance[String(tnl)] || []),
+          reason,
+        ]);
+      }
+      addRecord(
+        state,
+        createRecord(state, {
+          tnl,
+          type: "maintenance_monitoring",
+          line,
+          emoji,
+          reason,
+          sourceSection: "maintenance_monitoring",
+        }),
+      );
+      const item = ensureMaintenanceCase(state, {
+        tnl,
+        reason,
+        sourceSection: "maintenance_monitoring",
+        originalLine: line,
+      });
+      item.machineOutcome = "monitoring";
       return;
     }
     if (["setup_active", "setup_start"].includes(section)) {

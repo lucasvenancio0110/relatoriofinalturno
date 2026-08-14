@@ -1,5 +1,5 @@
 export const APP_NAME = "VENANC Tools — Relatório Final de Turno";
-export const APP_VERSION = "1.0.0";
+export const APP_VERSION = "1.1.0";
 
 export const ACCESS_HASH =
   "5d4399c14c690dd5cea764ac1157d890893108a6e7ea5a35dabb76acc8b4a1eb";
@@ -32,6 +32,8 @@ export const CELL_ORDER = Object.freeze(Object.keys(CELLS));
 export const ACTIVE_TYPES = Object.freeze([
   "maintenance",
   "maintenance_prod",
+  "maintenance_completed",
+  "maintenance_monitoring",
   "setup_active",
   "setup_start",
   "adjustment",
@@ -41,6 +43,8 @@ export const ACTIVE_TYPES = Object.freeze([
 export const TYPE_CONFIG = Object.freeze({
   maintenance: { short: "MANUTENÇÃO", tone: "danger" },
   maintenance_prod: { short: "MANUT. PRODUZINDO", tone: "success" },
+  maintenance_completed: { short: "✅ CONCLUSÃO INFORMADA", tone: "warning" },
+  maintenance_monitoring: { short: "EM ACOMPANHAMENTO", tone: "info" },
   setup_active: { short: "SETUP", tone: "setup" },
   setup_start: { short: "INICIAR SETUP", tone: "setup" },
   adjustment: { short: "AJUSTE", tone: "warning" },
@@ -50,6 +54,8 @@ export const TYPE_CONFIG = Object.freeze({
 export const SECTION_LABELS = Object.freeze({
   maintenance: "MANUTENÇÃO PARADA",
   maintenance_prod: "MANUTENÇÃO PRODUZINDO",
+  maintenance_completed: "MANUTENÇÃO CONCLUÍDA INFORMADA",
+  maintenance_monitoring: "MÁQUINA EM ACOMPANHAMENTO",
   setup_active: "SETUP",
   setup_start: "PRÓXIMOS SETUPS",
   adjustment: "AJUSTE",

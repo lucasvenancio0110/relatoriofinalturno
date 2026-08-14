@@ -43,3 +43,13 @@ export const defaultFields = {
   development: "",
   observations: "",
 };
+
+export const maintenanceLifecycleReport = `*MÁQUINAS EM MANUTENÇÃO PARADA:*
+TNL 048 - FALHA DE SENSOR
+✅ TNL 019 - QUEBRA DE BEDAME
+
+*MÁQUINAS EM MANUTENÇÃO PRODUZINDO:*
+TNL 025 - AGUARDANDO TÉCNICO
+
+*MANUTENÇÕES CONCLUÍDAS:*
+TNL's - 043 - 143.`;
