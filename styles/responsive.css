@@ -130,6 +130,46 @@
     border-radius: 19px;
   }
 
+  #maintenanceDialog {
+    width: min(calc(100% - 8px), 760px);
+    max-height: calc(100dvh - max(8px, env(safe-area-inset-top)));
+    margin: auto auto 0;
+  }
+
+  #maintenanceDialog .modal-card {
+    gap: 11px;
+    padding: 15px;
+    border-radius: 24px 24px 0 0;
+  }
+
+  .maintenance-submit {
+    bottom: -15px;
+    margin: 0 -15px -15px;
+    padding-inline: 15px;
+  }
+
+  .maintenance-step {
+    grid-template-columns: 27px minmax(0, 1fr);
+    gap: 8px;
+    padding: 11px;
+  }
+
+  .step-number {
+    width: 25px;
+    height: 25px;
+  }
+
+  .express-options button {
+    min-height: 46px;
+    padding: 7px;
+    font-size: 0.67rem;
+  }
+
+  .time-mode-options button {
+    min-height: 40px;
+    font-size: 0.6rem;
+  }
+
   .maintenance-grid,
   .modal-actions-row {
     grid-template-columns: 1fr;
@@ -147,5 +187,15 @@
 
   .access-card {
     padding: 25px 18px;
+  }
+
+  .express-options-two,
+  .outcome-options {
+    grid-template-columns: 1fr;
+  }
+
+  .wide-choice,
+  .outcome-options button:last-child {
+    grid-column: auto;
   }
 }
