@@ -33,6 +33,11 @@ test("ronda expressa evita selects nativos e identifica o chamado Tractian", () 
   assert.match(html, /data-time-mode="manual"/);
   assert.match(html, /data-time-mode="unknown"/);
   assert.match(html, /Rascunho salvo automaticamente/i);
+  assert.match(html, /id="maintenanceCompletionNotice"/);
+  assert.match(html, /id="maintenanceStatusOptions"/);
+  assert.match(html, /id="maintenanceOutcomeStep"/);
+  assert.match(html, /NÃO · AINDA ESTÁ EM MANUTENÇÃO/);
+  assert.match(html, /SIM · LIBERADA DA MANUTENÇÃO/);
 });
 
 test("rascunho da manutenção integra sessão, ocultação e fechamento da página", () => {
@@ -41,4 +46,11 @@ test("rascunho da manutenção integra sessão, ocultação e fechamento da pág
   assert.match(app, /visibilitychange/);
   assert.match(app, /pagehide/);
   assert.match(app, /resumePendingMaintenanceDraft/);
+});
+
+test("conflito setup e manutenção preserva a sequência operacional", () => {
+  assert.match(app, /resolveSetupBeforeMaintenance/);
+  assert.match(app, /SETUP CONCLUÍDO → ENTROU EM MANUTENÇÃO/);
+  assert.match(app, /SETUP INTERROMPIDO → RETOMAR APÓS MANUTENÇÃO/);
+  assert.match(app, /applySetupBeforeMaintenance/);
 });

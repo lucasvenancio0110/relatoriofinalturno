@@ -135,6 +135,25 @@ export function normalizeMaintenanceCases(cases = {}) {
   );
 }
 
+export function maintenanceRoundDefaults(value = {}, { producing = false } = {}) {
+  const item = normalizeMaintenanceCase(value);
+  if (item.reportedCompleted && !item.reviewed) {
+    return normalizeMaintenanceCase({
+      ...item,
+      serviceStatus: "completed",
+      machineOutcome: "released",
+    });
+  }
+  if (
+    !producing &&
+    ["waiting", "working"].includes(item.serviceStatus) &&
+    !item.machineOutcome
+  ) {
+    return normalizeMaintenanceCase({ ...item, machineOutcome: "stopped" });
+  }
+  return item;
+}
+
 export function maintenanceCaseOf(state, tnl) {
   const value = state?.maintenanceCases?.[String(Number(tnl))];
   return value ? normalizeMaintenanceCase(value, tnl) : null;
@@ -265,53 +284,53 @@ export function maintenanceTrackingLines(item, currentShift) {
   const value = normalizeMaintenanceCase(item);
   if (!value.reviewed) {
     return value.reportedCompleted
-      ? ["🔧 Conclusão informada pelo preparador; falta confirmar o atendimento."]
+      ? ["Conclusão informada pelo preparador; falta registrar origem e horários."]
       : [];
   }
 
   const lines = [];
   if (value.initiationMode === "production" && value.callOrigin === "previous") {
-    lines.push(`📞 Chamado aberto pelo ${value.callOpenedShift || previousShift(currentShift)}º turno.`);
+    lines.push(`Chamado aberto pelo ${value.callOpenedShift || previousShift(currentShift)}º turno.`);
   } else if (value.initiationMode === "production" && value.callOrigin === "current") {
     const openedShift = value.callOpenedShift || Number(currentShift);
     lines.push(
       value.callOpenedAt
-        ? `📞 Chamado aberto pelo ${openedShift}º turno às ${value.callOpenedAt}.`
-        : `📞 Chamado aberto pelo ${openedShift}º turno; horário não informado.`,
+        ? `Chamado aberto pelo ${openedShift}º turno às ${value.callOpenedAt}.`
+        : `Chamado aberto pelo ${openedShift}º turno; horário não informado.`,
     );
   } else if (value.initiationMode === "maintenance") {
-    lines.push("🛠️ Intervenção iniciada pela própria manutenção.");
+    lines.push("Intervenção iniciada pela própria manutenção.");
   } else if (value.initiationMode === "pending") {
-    lines.push("📞 Chamado ainda não foi aberto e a manutenção não iniciou.");
+    lines.push("Chamado ainda não foi aberto e a manutenção não iniciou.");
   } else {
-    lines.push("📞 Origem do atendimento não confirmada.");
+    lines.push("Origem do atendimento não confirmada.");
   }
 
   if (value.tractianStatus === "informed" && value.tractianCode) {
-    lines.push(`🎫 Tractian #${value.tractianCode}.`);
+    lines.push(`Chamado Tractian: #${value.tractianCode}.`);
   } else if (value.tractianStatus === "none") {
-    lines.push("🎫 Sem código Tractian.");
+    lines.push("Sem código Tractian.");
   } else if (value.tractianStatus === "not_found") {
-    lines.push("🎫 Código Tractian não localizado.");
+    lines.push("Código Tractian não localizado.");
   }
 
   if (value.serviceStatus === "waiting") {
-    lines.push("🔧 Manutenção ainda não chegou ou não iniciou a atuação.");
+    lines.push("Manutenção ainda não chegou ou não iniciou a atuação.");
   } else if (value.serviceStatus === "working") {
-    lines.push(`🕒 Início da atuação: ${shiftTime(value.arrivedShift, value.arrivedAt, value.arrivedUnknown)}.`);
-    lines.push(`🔧 Continuava em atuação no fechamento do ${Number(currentShift)}º turno.`);
+    lines.push(`Início da atuação: ${shiftTime(value.arrivedShift, value.arrivedAt, value.arrivedUnknown)}.`);
+    lines.push(`Continuava em manutenção no fechamento do ${Number(currentShift)}º turno.`);
   } else if (value.serviceStatus === "completed") {
-    lines.push(`🕒 Início da atuação: ${shiftTime(value.arrivedShift, value.arrivedAt, value.arrivedUnknown)}.`);
-    lines.push(`🏁 Término da atuação: ${shiftTime(value.finishedShift, value.finishedAt, value.finishedUnknown)}.`);
+    lines.push(`Início da atuação: ${shiftTime(value.arrivedShift, value.arrivedAt, value.arrivedUnknown)}.`);
+    lines.push(`Liberação da manutenção: ${shiftTime(value.finishedShift, value.finishedAt, value.finishedUnknown)}.`);
   } else if (value.serviceStatus === "resolved_without") {
-    lines.push("🔧 Problema resolvido sem atuação da manutenção.");
+    lines.push("Problema resolvido sem atuação da manutenção.");
   } else {
-    lines.push("🔧 Situação do atendimento não confirmada.");
+    lines.push("Situação do atendimento não confirmada.");
   }
 
-  lines.push(`📍 Como ficou: ${MACHINE_OUTCOMES[value.machineOutcome] || "NÃO CONFIRMADA"}.`);
-  if (value.monitoringDetails) lines.push(`👁️ Acompanhar: ${value.monitoringDetails}`);
-  if (value.details) lines.push(`📝 Detalhes da atuação: ${value.details}`);
+  lines.push(`Como ficou: ${MACHINE_OUTCOMES[value.machineOutcome] || "NÃO CONFIRMADA"}.`);
+  if (value.monitoringDetails) lines.push(`Acompanhar: ${value.monitoringDetails}`);
+  if (value.details) lines.push(`Detalhes da atuação: ${value.details}`);
   return lines;
 }
 
@@ -340,7 +359,7 @@ export function maintenanceTrackingReportEntry(item, currentShift) {
   if (!lines.length) return "";
   return [
     `*${maintenanceSummaryEntry(value)}*`,
-    ...lines.map((line, index) => `${index === lines.length - 1 ? "└─" : "├─"} ${line}`),
+    ...lines,
   ].join("\n");
 }
 
@@ -367,7 +386,7 @@ export function maintenanceReportBucket(item) {
 export function maintenanceActionLabel(item) {
   const value = normalizeMaintenanceCase(item || {});
   return value.reportedCompleted && !value.reviewed
-    ? "CONFIRMAR MANUTENÇÃO CONCLUÍDA"
+    ? "REGISTRAR HORÁRIOS DA MANUTENÇÃO"
     : "ATUALIZAR ACOMPANHAMENTO DA MANUTENÇÃO";
 }
 
@@ -397,7 +416,7 @@ export function parseMaintenanceTrackingLine(item, line, currentShift) {
     update = { initiationMode: "pending", callOrigin: "not_opened", callOpenedShift: null };
   } else if (/^Origem do (?:chamado|atendimento) nao confirmada/i.test(normalized)) {
     update = { initiationMode: "unknown", callOrigin: "unknown", callOpenedShift: null };
-  } else if ((match = normalized.match(/^Tractian\s*#\s*(\d+)/i))) {
+  } else if ((match = normalized.match(/^(?:Chamado\s+)?Tractian\s*:?\s*#\s*(\d+)/i))) {
     update = { tractianCode: match[1], tractianStatus: "informed" };
   } else if (/^Sem codigo Tractian/i.test(normalized)) {
     update = { tractianCode: "", tractianStatus: "none" };
@@ -419,21 +438,21 @@ export function parseMaintenanceTrackingLine(item, line, currentShift) {
       arrivedAt: "",
       arrivedUnknown: true,
     };
-  } else if ((match = normalized.match(/^Termino da atuacao:\s*(?:([123])\s*[º°o]?\s*turno\s+)?(?:as\s+)?(\d{2}:\d{2})/i))) {
+  } else if ((match = normalized.match(/^(?:Termino da atuacao|Liberacao da manutencao):\s*(?:([123])\s*[º°o]?\s*turno\s+)?(?:as\s+)?(\d{2}:\d{2})/i))) {
     update = {
       serviceStatus: "completed",
       finishedShift: match[1] ? Number(match[1]) : null,
       finishedAt: match[2],
       finishedUnknown: false,
     };
-  } else if (/^Termino da atuacao:\s*horario nao informado/i.test(normalized)) {
+  } else if (/^(?:Termino da atuacao|Liberacao da manutencao):\s*horario nao informado/i.test(normalized)) {
     update = {
       serviceStatus: "completed",
       finishedShift: null,
       finishedAt: "",
       finishedUnknown: true,
     };
-  } else if (/^Continuava em atuacao no fechamento/i.test(normalized)) {
+  } else if (/^Continuava em (?:atuacao|manutencao) no fechamento/i.test(normalized)) {
     update = { serviceStatus: "working" };
   } else if ((match = normalized.match(/^Manutencao atuando desde\s+(\d{2}:\d{2})/i))) {
     update = { serviceStatus: "working", arrivedAt: match[1], arrivedUnknown: false };
@@ -484,7 +503,7 @@ export function parseMaintenanceTrackingLine(item, line, currentShift) {
     update = { monitoringDetails: raw.split(":").slice(1).join(":").trim() };
   } else if ((match = normalized.match(/^Detalhes da atuacao:\s*(.+)$/i))) {
     update = { details: raw.split(":").slice(1).join(":").trim() };
-  } else if (/^Conclusao informada pelo preparador; falta confirmar o atendimento/i.test(normalized)) {
+  } else if (/^Conclusao informada pelo preparador; falta (?:confirmar o atendimento|registrar origem e horarios)/i.test(normalized)) {
     update = { reportedCompleted: true };
     reviewed = false;
   }
