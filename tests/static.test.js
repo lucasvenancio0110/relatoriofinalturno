@@ -15,7 +15,7 @@ const zoomLock = readFileSync(resolve(root, "src/js/zoom-lock.js"), "utf8");
 const maintenanceHtml = html.match(/<dialog[^>]+id="maintenanceDialog"[\s\S]*?<\/dialog>/)?.[0] || "";
 
 test("HTML usa módulos e não contém senha em texto aberto", () => {
-  assert.match(html, /type="module" src="\.\/src\/js\/app\.js"/);
+  assert.match(html, /type="module" src="\.\/src\/js\/app\.js\?v=[^"]+"/);
   assert.doesNotMatch(html, /132423/);
   assert.doesNotMatch(html, /onclick\s*=/i);
 });
@@ -25,10 +25,12 @@ test("viewport bloqueia zoom e diálogos possuem semântica nativa", () => {
   assert.match(html, /maximum-scale=1/i);
   assert.match(html, /minimum-scale=1/i);
   assert.match(baseCss, /touch-action:\s*manipulation;/i);
-  assert.match(html, /src="\.\/src\/js\/zoom-lock\.js"/);
+  assert.match(html, /src="\.\/src\/js\/zoom-lock\.js\?v=[^"]+"/);
   assert.match(zoomLock, /gesturestart/);
   assert.match(zoomLock, /touches\.length > 1/);
   assert.match(zoomLock, /dblclick/);
+  assert.doesNotMatch(zoomLock, /touchend/);
+  assert.match(responsiveCss, /input:not\(\[type="hidden"\]\)[\s\S]*?font-size:\s*16px\s*!important;/i);
   assert.ok((html.match(/<dialog\b/g) || []).length >= 4);
   assert.match(html, /id="maintenanceCallOrigin"/);
   assert.match(html, /id="maintenanceServiceStatus"/);

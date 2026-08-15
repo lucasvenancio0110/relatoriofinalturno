@@ -73,3 +73,11 @@ test("ronda conecta a regra de motivo a todas as transições críticas", () => 
   assert.match(appSource, /category === "adjustment" && answer === "no"/);
   assert.match(appSource, /keepsCategory && \["adjustment", "maintenance"\]\.includes\(category\)/);
 });
+
+
+test("fluxo mantém perguntas explícitas de motivo", () => {
+  assert.match(appSource, /Motivo do ajuste — TNL/);
+  assert.match(appSource, /Escreva o motivo do ajuste para o relatório/);
+  assert.match(appSource, /Motivo da manutenção — TNL/);
+  assert.match(appSource, /Escreva o motivo da manutenção para o relatório/);
+});

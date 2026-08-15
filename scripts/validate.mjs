@@ -18,12 +18,12 @@ if (missingIds.length) throw new Error(`IDs usados no app e ausentes no HTML: ${
 if (/\sonclick\s*=|\sonchange\s*=|\sonsubmit\s*=/i.test(html)) {
   throw new Error("Eventos inline não são permitidos na arquitetura modular.");
 }
-if (!/<script\s+type="module"\s+src="\.\/src\/js\/app\.js"><\/script>/i.test(html)) {
+if (!/<script\s+type="module"\s+src="\.\/src\/js\/app\.js(?:\?v=[^"]+)?"><\/script>/i.test(html)) {
   throw new Error("Entrada modular app.js não encontrada.");
 }
 
 for (const match of html.matchAll(/(?:href|src)=["'](\.[^"']+)["']/g)) {
-  const target = join(root, match[1]);
+  const target = join(root, match[1].split("?")[0]);
   if (!existsSync(target)) throw new Error(`Arquivo referenciado não existe: ${match[1]}`);
 }
 

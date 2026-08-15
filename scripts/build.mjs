@@ -11,6 +11,7 @@ await mkdir(resolve(output, "src/js"), { recursive: true });
 await Promise.all([
   cp(resolve(root, "index.html"), resolve(output, "index.html")),
   cp(resolve(root, ".nojekyll"), resolve(output, ".nojekyll")),
+  cp(resolve(root, "src/js/zoom-lock.js"), resolve(output, "src/js/zoom-lock.js")),
   cp(resolve(root, "styles"), resolve(output, "styles"), { recursive: true }),
 ]);
 
