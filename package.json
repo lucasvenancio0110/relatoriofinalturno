@@ -1,12 +1,19 @@
 {
   "name": "relatorio-final-turno",
-  "version": "1.6.1",
+  "version": "1.7.0",
   "private": true,
   "type": "module",
   "scripts": {
     "test": "node --test",
     "check": "node scripts/validate.mjs",
-    "validate": "npm run check && npm test"
+    "build": "node scripts/build.mjs",
+    "validate": "npm run check && npm test && npm run build"
+  },
+  "dependencies": {
+    "motion": "12.43.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.1"
   },
   "engines": {
     "node": ">=20"

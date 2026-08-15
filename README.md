@@ -12,7 +12,10 @@ Aplicação modular para preparar, revisar e copiar a passagem final de turno da
 - `src/js/model.js`: estado, conflitos, ledger de progresso, decisões, desfazer e reedição.
 - `src/js/report.js`: geração da mensagem final para WhatsApp.
 - `src/js/cloud.js`: histórico em nuvem e fila offline.
+- `src/js/dialog-layout.js`: cálculo puro da área visível e do teclado móvel.
+- `src/js/responsive-dialogs.js`: abertura, fechamento e animação responsiva dos popups.
 - `src/js/app.js`: interface, acessibilidade e orquestração dos fluxos.
+- `scripts/build.mjs`: bundle de produção com esbuild e dependências npm incorporadas.
 - `tests/`: testes do parser, domínio, relatório, nuvem e estrutura estática.
 
 ## Ronda e manutenção rápida
@@ -41,6 +44,14 @@ confirmação final ou quando o usuário limpa explicitamente a sessão.
 No relatório final, as listas operacionais permanecem compactas. O detalhamento do chamado
 Tractian, da atuação e do resultado aparece sem emojis, agrupado por máquina entre
 `DESENVOLVIMENTO` e `OBSERVAÇÕES`.
+
+## Popups responsivos
+
+Os diálogos continuam usando o elemento nativo `<dialog>` para preservar foco, teclado, `ESC` e
+o retorno dos formulários. O pacote npm `motion` é incorporado ao bundle somente pela entrada
+`motion/mini`, enquanto `VisualViewport` mantém os cards acima do teclado no iPhone e no Android.
+Container queries reorganizam os botões apenas quando o espaço interno realmente fica estreito;
+em celular comum, as respostas rápidas permanecem lado a lado.
 
 ## Validação local
 

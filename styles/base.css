@@ -418,10 +418,15 @@ summary:focus-visible,
 }
 
 .modal {
-  width: min(calc(100% - 24px), 560px);
-  max-height: min(88vh, 760px);
+  --dialog-max-width: 560px;
+  width: min(calc(100% - 24px), var(--dialog-max-width));
+  max-width: var(--dialog-max-width);
+  max-height: min(calc(var(--dialog-viewport-height, 100dvh) - 24px), 760px);
   margin: auto;
   overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  touch-action: pan-y;
   border: 0;
   border-radius: var(--radius-lg);
   color: var(--text);
@@ -429,7 +434,11 @@ summary:focus-visible,
 }
 
 .modal-wide {
-  width: min(calc(100% - 24px), 760px);
+  --dialog-max-width: 760px;
+}
+
+.modal[data-closing="true"] {
+  pointer-events: none;
 }
 
 .modal::backdrop {
@@ -438,6 +447,9 @@ summary:focus-visible,
 }
 
 .modal-card {
+  container-name: popup;
+  container-type: inline-size;
+  min-width: 0;
   display: grid;
   gap: 14px;
   padding: 22px;
@@ -456,7 +468,8 @@ summary:focus-visible,
 }
 
 .modal-card h2 {
-  font-size: 1.25rem;
+  font-size: clamp(1.08rem, 0.96rem + 0.8vw, 1.25rem);
+  line-height: 1.2;
 }
 
 .modal-card > p {
@@ -977,7 +990,7 @@ summary:focus-visible,
   border-radius: 11px;
   color: #fff;
   background: #34403d;
-  font-size: 0.82rem;
+  font-size: clamp(0.72rem, 0.67rem + 0.28vw, 0.82rem);
   font-weight: 900;
 }
 

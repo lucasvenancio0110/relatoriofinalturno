@@ -8,6 +8,8 @@ const html = readFileSync(resolve(root, "index.html"), "utf8");
 const app = readFileSync(resolve(root, "src/js/app.js"), "utf8");
 const baseCss = readFileSync(resolve(root, "styles/base.css"), "utf8");
 const responsiveCss = readFileSync(resolve(root, "styles/responsive.css"), "utf8");
+const responsiveDialogs = readFileSync(resolve(root, "src/js/responsive-dialogs.js"), "utf8");
+const buildScript = readFileSync(resolve(root, "scripts/build.mjs"), "utf8");
 const maintenanceHtml = html.match(/<dialog[^>]+id="maintenanceDialog"[\s\S]*?<\/dialog>/)?.[0] || "";
 
 test("HTML usa módulos e não contém senha em texto aberto", () => {
@@ -47,15 +49,30 @@ test("ronda rápida usa no máximo quatro blocos progressivos", () => {
 });
 
 test("formulário de manutenção permanece compacto e sem estouro no celular", () => {
+  const standardPhoneCss = responsiveCss
+    .split("@media (max-width: 390px) {")[1]
+    ?.split("@container popup")[0] || "";
   assert.match(maintenanceHtml, /SALVAR E AVANÇAR/);
   assert.match(maintenanceHtml, /class="time-mode-options quick-answer-grid release-time-options"/);
   assert.match(baseCss, /\.manual-time \{[\s\S]*?min-width:\s*0;[\s\S]*?overflow:\s*hidden;/);
   assert.match(baseCss, /\.maintenance-submit \.modal-actions-row \{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) 88px;/);
   assert.doesNotMatch(
-    responsiveCss,
+    standardPhoneCss,
     /\.express-options-two,\s*\.quick-answer-grid,\s*\.outcome-options\s*\{\s*grid-template-columns:\s*1fr;/,
   );
   assert.equal((maintenanceHtml.match(/Quando chegaram\?/g) || []).length, 1);
+});
+
+test("popups usam viewport visual, container query e Motion via npm", () => {
+  assert.match(app, /openResponsiveDialog/);
+  assert.doesNotMatch(app, /\.showModal\(\)/);
+  assert.match(responsiveDialogs, /from "motion\/mini"/);
+  assert.match(responsiveDialogs, /window\.visualViewport/);
+  assert.match(responsiveDialogs, /prefers-reduced-motion/);
+  assert.match(responsiveCss, /var\(--dialog-viewport-height, 100dvh\)/);
+  assert.match(responsiveCss, /@container popup \(max-width: 330px\)/);
+  assert.match(buildScript, /bundle:\s*true/);
+  assert.match(buildScript, /target:\s*\["safari16\.4", "chrome111", "firefox115"\]/);
 });
 
 test("rascunho da manutenção integra sessão, ocultação e fechamento da página", () => {
