@@ -251,6 +251,14 @@ function hasTimeOrUnknown(value, unknown) {
 export function validateMaintenanceUpdate(value) {
   const item = normalizeMaintenanceCase(value);
   const errors = [];
+  if (!item.initiationMode) {
+    errors.push("Informe se a parada veio do turno anterior, começou no nosso turno ou foi iniciada pela manutenção.");
+  } else if (
+    item.initiationMode === "production" &&
+    !["previous", "current"].includes(item.callOrigin)
+  ) {
+    errors.push("Informe qual turno abriu o chamado.");
+  }
   if (!item.tractianStatus) {
     errors.push("Informe o código Tractian ou selecione uma das alternativas.");
   }
@@ -274,9 +282,9 @@ export function validateMaintenanceUpdate(value) {
   if (!item.machineOutcome) errors.push("Informe como a máquina ficou.");
   if (
     ["waiting", "working"].includes(item.serviceStatus) &&
-    !["released", "stopped"].includes(item.machineOutcome)
+    item.machineOutcome !== "stopped"
   ) {
-    errors.push("Informe se a máquina está liberada/produzindo ou parada.");
+    errors.push("Se a manutenção não liberou, a máquina deve permanecer como parada.");
   }
   if (item.machineOutcome === "monitoring" && !item.monitoringDetails) {
     errors.push("Informe o que precisa ser acompanhado.");

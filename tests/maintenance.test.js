@@ -29,6 +29,7 @@ test("validação exige somente chamado, horários condicionais e estado final",
   });
   assert.equal(invalid.valid, false);
   assert.deepEqual(invalid.errors, [
+    "Informe se a parada veio do turno anterior, começou no nosso turno ou foi iniciada pela manutenção.",
     "Informe o código Tractian ou selecione uma das alternativas.",
     "Informe quando a manutenção chegou.",
     "Informe o horário de término ou marque como não informado.",
@@ -37,6 +38,8 @@ test("validação exige somente chamado, horários condicionais e estado final",
 
   const valid = validateMaintenanceUpdate({
     tnl: 19,
+    initiationMode: "production",
+    callOrigin: "previous",
     tractianStatus: "none",
     serviceStatus: "completed",
     arrivedShift: 2,
@@ -86,26 +89,27 @@ test("caso de manutenção mantém origem, horários, resultado e texto rastreá
   assert.match(maintenanceDecisionDetail(item, 2), /Acompanhar: Medida após a troca do bedame/);
 });
 
-test("atendimento em andamento aceita somente máquina liberada/produzindo ou parada", () => {
+test("atendimento em andamento mantém a máquina parada até a liberação", () => {
   const result = validateMaintenanceUpdate({
     tnl: 48,
+    initiationMode: "maintenance",
     tractianStatus: "not_found",
     serviceStatus: "working",
     arrivedUnknown: true,
-    machineOutcome: "released",
+    machineOutcome: "stopped",
   });
   assert.equal(result.valid, true);
 
   const invalid = validateMaintenanceUpdate({
     tnl: 48,
+    initiationMode: "maintenance",
     tractianStatus: "not_found",
     serviceStatus: "working",
     arrivedUnknown: true,
-    machineOutcome: "monitoring",
-    monitoringDetails: "Medida",
+    machineOutcome: "released",
   });
   assert.equal(invalid.valid, false);
-  assert.match(invalid.errors.join(" "), /liberada\/produzindo ou parada/);
+  assert.match(invalid.errors.join(" "), /deve permanecer como parada/);
 });
 
 test("check do preparador pula a reconfirmação e prepara somente origem e horários", () => {
@@ -183,6 +187,8 @@ test("respostas rápidas derivam a situação sem perguntas extras", () => {
 test("início do turno substitui horário inventado e sobrevive no relatório", () => {
   const result = validateMaintenanceUpdate({
     tnl: 88,
+    initiationMode: "production",
+    callOrigin: "previous",
     tractianCode: "6661",
     serviceStatus: "completed",
     arrivedShift: 2,

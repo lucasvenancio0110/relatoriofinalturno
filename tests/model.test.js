@@ -9,6 +9,7 @@ import {
   commitDecision,
   kpis,
   progressForCell,
+  removeCategory,
   removeRecordsOfTnl,
   reopenDecision,
   snapshotSubject,
@@ -82,4 +83,16 @@ test("desfazer restaura todo o acompanhamento da manutenção", () => {
   assert.equal(state.maintenanceCases["19"].reportedCompleted, true);
   assert.equal(state.records.some((item) => item.tnl === 19 && item.type === "maintenance_completed"), true);
   assert.equal(state.completed.maintenances.includes(19), false);
+});
+
+test("alterar somente a manutenção preserva as outras categorias da mesma TNL", () => {
+  const { state } = parseReport({ raw: fullReport, nextShift: 3 });
+  const before = categoriesOfTnl(state, 19);
+
+  assert.ok(before.includes("maintenance"));
+  assert.ok(before.includes("setup"));
+  removeCategory(state, 19, "maintenance");
+
+  assert.equal(categoriesOfTnl(state, 19).includes("maintenance"), false);
+  assert.equal(categoriesOfTnl(state, 19).includes("setup"), true);
 });
