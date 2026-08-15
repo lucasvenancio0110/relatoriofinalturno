@@ -28,13 +28,12 @@ jobs:
           version = "1.8.1"
           cache = "1.8.1-20260815-1203"
 
-          # 1) Versão real do app
           config = Path("src/js/config.js")
           text = config.read_text(encoding="utf-8")
           text = re.sub(r'export const APP_VERSION = "[^"]+";', f'export const APP_VERSION = "{version}";', text, count=1)
           config.write_text(text, encoding="utf-8")
 
-          # 2) iPhone/iOS: impedir zoom automático ao focar campos (<16px no Safari)
+          # Safari/iPhone amplia automaticamente campos menores que 16px.
           responsive = Path("styles/responsive.css")
           css = responsive.read_text(encoding="utf-8")
           marker = "/* iOS anti-focus-zoom: campos editáveis nunca abaixo de 16px */"
@@ -42,12 +41,21 @@ jobs:
               css += f'''\n\n{marker}\n@media (max-width: 920px) {{\n  input:not([type="hidden"]),\n  textarea,\n  select {{\n    font-size: 16px !important;\n    touch-action: manipulation;\n  }}\n\n  button,\n  .modal-btn {{\n    touch-action: manipulation;\n  }}\n}}\n'''
           responsive.write_text(css, encoding="utf-8")
 
-          # 3) Zoom: bloquear pinch/gestures sem cancelar touchend global,
-          #    porque preventDefault em touchend pode atrapalhar foco/teclado no iPhone.
-          zoom = Path("src/js/zoom-lock.js")
-          zoom.write_text('''const preventZoom = (event) => {\n  event.preventDefault();\n};\n\n// iOS Safari: bloqueia pinça/gestos nativos sem interferir no toque simples de inputs.\n["gesturestart", "gesturechange", "gestureend"].forEach((eventName) => {\n  document.addEventListener(eventName, preventZoom, { passive: false });\n});\n\n// Fallback para navegadores sem GestureEvent.\ndocument.addEventListener(\n  "touchmove",\n  (event) => {\n    if (event.touches && event.touches.length > 1) preventZoom(event);\n  },\n  { passive: false },\n);\n\n// touch-action: manipulation cuida do duplo toque; dblclick é a trava adicional.\ndocument.addEventListener("dblclick", preventZoom, { passive: false });\n''', encoding="utf-8")
+          # Mantém pinça/gesture bloqueados, mas não cancela touchend global (preserva 1 toque nos campos).
+          Path("src/js/zoom-lock.js").write_text('''const preventZoom = (event) => {\n  event.preventDefault();\n};\n\n["gesturestart", "gesturechange", "gestureend"].forEach((eventName) => {\n  document.addEventListener(eventName, preventZoom, { passive: false });\n});\n\ndocument.addEventListener(\n  "touchmove",\n  (event) => {\n    if (event.touches && event.touches.length > 1) preventZoom(event);\n  },\n  { passive: false },\n);\n\ndocument.addEventListener("dblclick", preventZoom, { passive: false });\n''', encoding="utf-8")
 
-          # 4) Cache-bust explícito: força Safari/GitHub Pages a carregar os arquivos novos.
+          # O build antigo NÃO copiava zoom-lock.js para dist. Isso fazia a trava existir no repo e faltar no site publicado.
+          build = Path("scripts/build.mjs")
+          build_text = build.read_text(encoding="utf-8")
+          copy_anchor = 'cp(resolve(root, ".nojekyll"), resolve(output, ".nojekyll")),'
+          copy_zoom = 'cp(resolve(root, "src/js/zoom-lock.js"), resolve(output, "src/js/zoom-lock.js")),'
+          if copy_zoom not in build_text:
+              if copy_anchor not in build_text:
+                  raise SystemExit("Âncora do build não encontrada")
+              build_text = build_text.replace(copy_anchor, copy_anchor + "\n  " + copy_zoom, 1)
+          build.write_text(build_text, encoding="utf-8")
+
+          # Cache-bust: força o iPhone a baixar a lógica atual (inclusive a regra de motivo).
           index = Path("index.html")
           html = index.read_text(encoding="utf-8")
           assets = [
@@ -62,7 +70,19 @@ jobs:
               html = re.sub(re.escape(asset) + r'(?:\?v=[^\"\']+)?', f"{asset}?v={cache}", html)
           index.write_text(html, encoding="utf-8")
 
-          # 5) Testes aceitam cache-bust e garantem a proteção contra zoom de foco.
+          # Validador precisa entender URLs versionadas e checar o arquivo real sem query string.
+          validate = Path("scripts/validate.mjs")
+          val = validate.read_text(encoding="utf-8")
+          val = val.replace(
+              'if (!/<script\\s+type="module"\\s+src="\\.\\/src\\/js\\/app\\.js"><\\/script>/i.test(html)) {',
+              'if (!/<script\\s+type="module"\\s+src="\\.\\/src\\/js\\/app\\.js(?:\\?v=[^\"]+)?"><\\/script>/i.test(html)) {'
+          )
+          val = val.replace(
+              'const target = join(root, match[1]);',
+              'const target = join(root, match[1].split("?")[0]);'
+          )
+          validate.write_text(val, encoding="utf-8")
+
           static = Path("tests/static.test.js")
           test = static.read_text(encoding="utf-8")
           test = test.replace(
@@ -73,13 +93,14 @@ jobs:
               'assert.match(html, /src="\\.\\/src\\/js\\/zoom-lock\\.js"/);',
               'assert.match(html, /src="\\.\\/src\\/js\\/zoom-lock\\.js\\?v=[^"]+"/);'
           )
-          zoom_test_anchor = 'assert.match(zoomLock, /dblclick/);'
-          zoom_test_extra = '''assert.match(zoomLock, /dblclick/);\n  assert.doesNotMatch(zoomLock, /touchend/);\n  assert.match(responsiveCss, /input:not\\(\\[type="hidden"\\]\\)[\\s\\S]*?font-size:\\s*16px\\s*!important;/i);'''
           if 'assert.doesNotMatch(zoomLock, /touchend/);' not in test:
-              test = test.replace(zoom_test_anchor, zoom_test_extra, 1)
+              test = test.replace(
+                  'assert.match(zoomLock, /dblclick/);',
+                  'assert.match(zoomLock, /dblclick/);\n  assert.doesNotMatch(zoomLock, /touchend/);\n  assert.match(responsiveCss, /input:not\\(\\[type="hidden"\\]\\)[\\s\\S]*?font-size:\\s*16px\\s*!important;/i);',
+                  1,
+              )
           static.write_text(test, encoding="utf-8")
 
-          # 6) Reforço de regressão: o fluxo precisa conter pergunta de motivo para ajuste/manutenção.
           op = Path("tests/operational-reasons.test.js")
           if op.exists():
               op_text = op.read_text(encoding="utf-8")
