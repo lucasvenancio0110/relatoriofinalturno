@@ -232,10 +232,10 @@
               <h3 id="maintenanceStartQuestion">Como essa manutenção começou?</h3>
               <input id="maintenanceInitiationMode" type="hidden" />
               <div class="express-options express-options-two">
-                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="production"><span>📞</span> PRODUÇÃO ABRIU CHAMADO</button>
-                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="maintenance"><span>🛠️</span> MANUTENÇÃO INICIOU SOZINHA</button>
-                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="pending"><span>⏳</span> AINDA NÃO INICIOU / SEM CHAMADO</button>
-                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="unknown"><span>?</span> NÃO CONSEGUI CONFIRMAR</button>
+                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="production">PRODUÇÃO ABRIU CHAMADO</button>
+                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="maintenance">MANUTENÇÃO INICIOU SOZINHA</button>
+                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="pending">AINDA NÃO INICIOU / SEM CHAMADO</button>
+                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="unknown">NÃO CONSEGUI CONFIRMAR</button>
               </div>
 
               <div class="conditional-panel" id="maintenanceProductionFields" hidden>
@@ -281,14 +281,18 @@
           <section class="maintenance-step" aria-labelledby="maintenanceStatusQuestion">
             <span class="step-number">2</span>
             <div class="step-content">
-              <h3 id="maintenanceStatusQuestion">Qual é a situação agora?</h3>
+              <h3 id="maintenanceStatusQuestion">A manutenção liberou a máquina?</h3>
               <input id="maintenanceServiceStatus" type="hidden" />
-              <div class="express-options express-options-two status-options">
-                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="waiting"><span>⏳</span> AINDA NÃO CHEGOU / INICIOU</button>
-                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="working"><span>🔧</span> ESTÁ ATUANDO</button>
-                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="completed"><span>✅</span> ATENDIMENTO FINALIZADO</button>
-                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="resolved_without"><span>↩️</span> RESOLVIDO SEM MANUTENÇÃO</button>
-                <button class="wide-choice" type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="unknown"><span>?</span> NÃO CONSEGUI CONFIRMAR</button>
+              <div class="conditional-panel" id="maintenanceCompletionNotice" hidden>
+                <strong>Já veio informada como liberada.</strong>
+                <p>Preencha quando a manutenção iniciou e quando liberou a máquina.</p>
+              </div>
+              <div class="express-options express-options-two status-options" id="maintenanceStatusOptions">
+                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="waiting">AINDA NÃO CHEGOU / INICIOU</button>
+                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="working">NÃO · AINDA ESTÁ EM MANUTENÇÃO</button>
+                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="completed">SIM · LIBERADA DA MANUTENÇÃO</button>
+                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="resolved_without">RESOLVIDA SEM MANUTENÇÃO</button>
+                <button class="wide-choice" type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="unknown">NÃO CONSEGUI CONFIRMAR</button>
               </div>
 
               <div class="conditional-panel time-card" id="maintenanceArrivedField" hidden>
@@ -333,17 +337,17 @@
             </div>
           </section>
 
-          <section class="maintenance-step" aria-labelledby="maintenanceOutcomeQuestion">
+          <section class="maintenance-step" id="maintenanceOutcomeStep" aria-labelledby="maintenanceOutcomeQuestion">
             <span class="step-number">3</span>
             <div class="step-content">
-              <h3 id="maintenanceOutcomeQuestion">Como a máquina ficou?</h3>
+              <h3 id="maintenanceOutcomeQuestion">Depois da liberação, como a máquina ficou?</h3>
               <input id="maintenanceMachineOutcome" type="hidden" />
               <div class="express-options outcome-options">
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="released"><span>✅</span> LIBERADA</button>
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="monitoring"><span>👁️</span> EM ACOMPANHAMENTO</button>
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="stopped"><span>⛔</span> CONTINUA PARADA</button>
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="adjustment"><span>📐</span> PASSOU PARA AJUSTE</button>
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="setup"><span>🔄</span> PASSOU PARA SETUP</button>
+                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="released">LIBERADA</button>
+                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="monitoring">EM ACOMPANHAMENTO</button>
+                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="stopped">CONTINUA PARADA</button>
+                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="adjustment">PASSOU PARA AJUSTE</button>
+                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="setup">PASSOU PARA SETUP</button>
               </div>
 
               <div class="field conditional-panel" id="maintenanceMonitoringField" hidden>

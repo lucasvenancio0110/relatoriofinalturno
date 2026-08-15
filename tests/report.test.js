@@ -25,6 +25,12 @@ test("relatório final mantém todas as seções do modelo WhatsApp", () => {
   assert.match(report, /TNL 043 - VARIAÇÃO DE MEDIDA/);
   assert.match(report, /DESENVOLVIMENTO GERAL SEM MÁQUINA/);
   assert.match(report, /TNL 056 - SEM ORDEM/);
+  assert.ok(
+    report.indexOf("*DESENVOLVIMENTO:*") <
+      report.indexOf("*DETALHAMENTO DAS MANUTENÇÕES:*") &&
+      report.indexOf("*DETALHAMENTO DAS MANUTENÇÕES:*") <
+        report.indexOf("*OBSERVAÇÕES:*"),
+  );
 });
 
 test("conclusão migra a TNL para o bloco concluído", () => {
@@ -43,7 +49,7 @@ test("check informado pelo preparador continua visível até a confirmação", (
   const { state } = parseReport({ raw: maintenanceLifecycleReport, nextShift: 3 });
   const report = generateReport(state, defaultFields);
   assert.match(report, /✅ TNL 019 - QUEBRA DE BEDAME/);
-  assert.match(report, /Conclusão informada pelo preparador; falta confirmar o atendimento/);
+  assert.match(report, /Conclusão informada pelo preparador; falta registrar origem e horários/);
   assert.match(report, /✅ TNL 043 - MANUTENÇÃO/);
   assert.match(report, /✅ TNL 143 - MANUTENÇÃO/);
 });
@@ -91,7 +97,7 @@ test("relatório mantém listas compactas e separa o detalhamento por máquina",
     .split("*DESENVOLVIMENTO:*")[0];
   const trackingBlock = report
     .split("*DETALHAMENTO DAS MANUTENÇÕES:*")[1]
-    .split("*SETUP:*")[0];
+    .split("*OBSERVAÇÕES:*")[0];
 
   assert.match(stoppedBlock, /TNL 048 - FALHA DE SENSOR/);
   assert.doesNotMatch(stoppedBlock, /Chamado aberto|Como ficou/);
@@ -101,19 +107,21 @@ test("relatório mantém listas compactas e separa o detalhamento por máquina",
 
   assert.match(trackingBlock, /\*TNL 019 - QUEBRA DE BEDAME\*/);
   assert.match(trackingBlock, /Início da atuação: 1º turno às 15:10/);
-  assert.match(trackingBlock, /Término da atuação: 1º turno às 15:45/);
+  assert.match(trackingBlock, /Liberação da manutenção: 1º turno às 15:45/);
   assert.match(trackingBlock, /Como ficou: LIBERADA/);
   assert.match(trackingBlock, /\n\n\*TNL 025 - AGUARDANDO TÉCNICO\*/);
   assert.match(trackingBlock, /Chamado aberto pelo 2º turno às 16:10/);
-  assert.match(trackingBlock, /Tractian #6661/);
+  assert.match(trackingBlock, /Chamado Tractian: #6661/);
   assert.match(trackingBlock, /Como ficou: EM ACOMPANHAMENTO/);
   assert.match(trackingBlock, /Acompanhar: Acompanhar medida/);
   assert.match(trackingBlock, /\*TNL 048 - FALHA DE SENSOR\*/);
   assert.match(trackingBlock, /Chamado aberto pelo 1º turno/);
   assert.match(trackingBlock, /Manutenção ainda não chegou/);
   assert.match(trackingBlock, /Como ficou: CONTINUA PARADA/);
-  assert.match(trackingBlock, /├─ 📞/);
-  assert.match(trackingBlock, /└─ 📍 Como ficou/);
+  assert.doesNotMatch(
+    trackingBlock,
+    /[📞🛠️🎫🔧🕒🏁📍👁️📝]|[├└]─/u,
+  );
 });
 
 test("relatório gerado pode ser importado no turno seguinte sem perder a linha do tempo", () => {
@@ -187,9 +195,9 @@ test("intervenção direta da manutenção e Tractian sobrevivem ao copiar e rei
 
   const copied = generateReport(state, defaultFields);
   assert.match(copied, /Intervenção iniciada pela própria manutenção/);
-  assert.match(copied, /Tractian #6661/);
+  assert.match(copied, /Chamado Tractian: #6661/);
   assert.match(copied, /Início da atuação: 1º turno às 13:40/);
-  assert.match(copied, /Término da atuação: 2º turno às 17:20/);
+  assert.match(copied, /Liberação da manutenção: 2º turno às 17:20/);
 
   const imported = parseReport({ raw: copied, currentShift: 3, nextShift: 1 }).state;
   const item = imported.maintenanceCases["48"];

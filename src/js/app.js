@@ -18,6 +18,7 @@ import {
   maintenanceCaseOf,
   maintenanceDecisionDetail,
   maintenanceReason,
+  maintenanceRoundDefaults,
   maintenanceTrackingLines,
   normalizeMaintenanceCase,
   previousShift,
@@ -52,6 +53,10 @@ import {
 } from "./model.js";
 import { parseReport, rebuildInfoFromFields } from "./parser.js";
 import { generateReport } from "./report.js";
+import {
+  SETUP_BEFORE_MAINTENANCE,
+  applySetupBeforeMaintenance,
+} from "./transitions.js";
 import {
   cellForTnl,
   cellLabel,
@@ -385,11 +390,11 @@ function cardForLedger(entry) {
   if (entry.status === "decided") return "";
   if (entry.kind === "machine") {
     const records = recordsOfTnl(state, entry.tnl);
-    if (!records.length) return "";
-    const conflict = hasConflict(state, entry.tnl) && !state.resolvedConflicts[String(entry.tnl)];
-    const first = records[0]?.type;
-    const config = conflict ? { short: "CONFLITO", tone: "danger" } : TYPE_CONFIG[first] || { short: "PENDÊNCIA", tone: "warning" };
     const maintenanceItem = maintenanceCaseOf(state, entry.tnl);
+    if (!records.length && !maintenanceItem) return "";
+    const conflict = hasConflict(state, entry.tnl) && !state.resolvedConflicts[String(entry.tnl)];
+    const first = records[0]?.type || (maintenanceItem ? "maintenance" : "");
+    const config = conflict ? { short: "CONFLITO", tone: "danger" } : TYPE_CONFIG[first] || { short: "PENDÊNCIA", tone: "warning" };
     const tracking = maintenanceItem?.reviewed
       ? `<div class="source-group"><strong>ÚLTIMO ACOMPANHAMENTO</strong>${maintenanceTrackingLines(
           maintenanceItem,
@@ -641,9 +646,16 @@ function setTimeMode(inputId, mode, { preserveValue = false, save = true } = {})
 }
 
 function updateMaintenanceFormVisibility() {
+  const dialog = byId("maintenanceDialog");
   const initiationMode = byId("maintenanceInitiationMode").value;
   const callOrigin = byId("maintenanceCallOrigin").value;
   const serviceStatus = byId("maintenanceServiceStatus").value;
+  const confirmedCompletion = dialog.dataset.confirmedCompletion === "true";
+  const producing = dialog.dataset.producing === "true";
+  const activeMaintenance = ["waiting", "working"].includes(serviceStatus);
+  if (activeMaintenance && !producing) {
+    setMaintenanceChoice("maintenanceMachineOutcome", "stopped");
+  }
   const machineOutcome = byId("maintenanceMachineOutcome").value;
   byId("maintenanceProductionFields").hidden = initiationMode !== "production";
   byId("maintenanceOpenedField").hidden =
@@ -655,7 +667,16 @@ function updateMaintenanceFormVisibility() {
   ].includes(initiationMode);
   byId("maintenanceArrivedField").hidden = !["working", "completed"].includes(serviceStatus);
   byId("maintenanceFinishedField").hidden = serviceStatus !== "completed";
+  byId("maintenanceStatusOptions").hidden = confirmedCompletion;
+  byId("maintenanceCompletionNotice").hidden = !confirmedCompletion;
+  byId("maintenanceOutcomeStep").hidden =
+    confirmedCompletion || !serviceStatus || (activeMaintenance && !producing);
   byId("maintenanceMonitoringField").hidden = machineOutcome !== "monitoring";
+  byId("maintenanceStatusQuestion").textContent = confirmedCompletion
+    ? "Registre os horários da manutenção"
+    : "A manutenção liberou a máquina?";
+  byId("maintenanceOutcomeQuestion").textContent =
+    "Depois da liberação, como a máquina ficou?";
   byId("maintenanceArrivedLabel").textContent =
     initiationMode === "maintenance"
       ? "Quando a atuação começou?"
@@ -800,7 +821,7 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   const key = maintenanceDraftKey(context, tnl);
   const storedDraft = maintenanceDrafts[key];
   const storedValues = storedDraft?.values || {};
-  let item = normalizeMaintenanceCase(
+  let item = maintenanceRoundDefaults(normalizeMaintenanceCase(
     {
       ...initial,
       ...storedValues,
@@ -815,7 +836,7 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
       ]),
     },
     tnl,
-  );
+  ), { producing: Boolean(context.producing) });
   if (item.callOpenedShift && item.initiationMode === "production") {
     item = normalizeMaintenanceCase(
       {
@@ -845,6 +866,8 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   activeMaintenanceDraftKey = key;
   dialog.dataset.tnl = String(Number(tnl));
   dialog.dataset.draftKey = key;
+  dialog.dataset.confirmedCompletion = String(item.reportedCompleted && !item.reviewed);
+  dialog.dataset.producing = String(Boolean(context.producing));
 
   byId("maintenanceDialogTitle").textContent = `Manutenção — TNL ${padTnl(tnl)}`;
   byId("maintenancePreviousShift").textContent = `TURNO ANTERIOR · ${previousShift(readFields().currentShift)}º TURNO`;
@@ -854,7 +877,7 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
     : "";
   byId("maintenanceSourceSummary").innerHTML = `${
     item.reportedCompleted
-      ? "<strong>✅ O preparador informou conclusão; confirme o estado real.</strong>"
+      ? "<strong>Manutenção já informada como concluída.</strong><span>Registre a origem do atendimento, o chamado e os horários.</span>"
       : "<strong>Manutenção registrada para acompanhamento.</strong>"
   }${item.reasons.length ? `<span>Motivo: ${escapeHtml(item.reasons.join(" + "))}</span>` : ""}${received}`;
 
@@ -1012,13 +1035,39 @@ function addOutcomeFuture(tnl, mode, emoji = "🔴") {
     heading: nextTurnHeading(readFields().nextShift),
     tnl: Number(tnl),
     emoji,
-    displayText: `${emoji} TNL ${padTnl(tnl)} - ${after ? "Após manutenção" : `Setup ${readFields().nextShift}°T`}`,
-    rawText: `TNL ${padTnl(tnl)} - ${after ? "Após manutenção" : `Setup ${readFields().nextShift}°T`}`,
+    displayText: `${emoji} TNL ${padTnl(tnl)} - ${after ? "RETOMAR SETUP APÓS MANUTENÇÃO" : `Setup ${readFields().nextShift}°T`}`,
+    rawText: `TNL ${padTnl(tnl)} - ${after ? "RETOMAR SETUP APÓS MANUTENÇÃO" : `Setup ${readFields().nextShift}°T`}`,
     status: "kept",
     reviewed: true,
     outcome: true,
   });
   state.futureItems = sortByTnl(state.futureItems);
+}
+
+async function resolveSetupBeforeMaintenance(tnl) {
+  if (!categoriesOfTnl(state, tnl).includes("setup")) return null;
+  const resolution = await showChoice({
+    title: `TNL ${padTnl(tnl)} · SETUP → MANUTENÇÃO`,
+    subtitle: "A manutenção já foi registrada. Agora confirme o que aconteceu com o setup para não perder a sequência.",
+    actions: [
+      {
+        value: SETUP_BEFORE_MAINTENANCE.completed,
+        label: "SETUP CONCLUÍDO → ENTROU EM MANUTENÇÃO",
+        tone: "success",
+      },
+      {
+        value: SETUP_BEFORE_MAINTENANCE.resume,
+        label: "SETUP INTERROMPIDO → RETOMAR APÓS MANUTENÇÃO",
+        tone: "setup",
+      },
+      {
+        value: SETUP_BEFORE_MAINTENANCE.remove,
+        label: "A INFORMAÇÃO DE SETUP ESTAVA INCORRETA",
+        tone: "danger",
+      },
+    ],
+  });
+  return resolution ? applySetupBeforeMaintenance(state, tnl, resolution) : false;
 }
 
 async function applyTransition({ subjectKey, tnl, target, applyTarget, action, before }) {
@@ -1203,6 +1252,9 @@ async function finishMaintenanceDecision({
     if (!adjustmentReason) return false;
   }
 
+  const setupTransition = await resolveSetupBeforeMaintenance(tnl);
+  if (setupTransition === false) return false;
+
   beforeApply();
   ensureMaintenanceCase(state, {
     tnl,
@@ -1232,12 +1284,21 @@ async function finishMaintenanceDecision({
     setAdjustment(tnl, adjustmentReason);
   } else if (tracking.machineOutcome === "setup") {
     if (closedService || seed.reportedCompleted) addCompleted(state, tnl, "maintenance");
-    removeCompleted(state, tnl, "setup");
-    setSetup(tnl, "active");
+    if (setupTransition?.resolution !== SETUP_BEFORE_MAINTENANCE.completed) {
+      removeCompleted(state, tnl, "setup");
+    }
+    setSetup(
+      tnl,
+      setupTransition?.resumeAfterMaintenance ? setupTransition.setupMode : "active",
+      setupTransition?.emoji || "🔴",
+    );
   } else if (tracking.machineOutcome === "released") {
     addCompleted(state, tnl, "maintenance");
   } else if (tracking.machineOutcome === "monitoring" && closedService) {
     addCompleted(state, tnl, "maintenance");
+  }
+  if (setupTransition?.resumeAfterMaintenance && tracking.machineOutcome !== "setup") {
+    addOutcomeFuture(tnl, "after", setupTransition.emoji);
   }
 
   const finalCase = maintenanceCaseOf(state, tnl);
@@ -1812,6 +1873,18 @@ function bindEvents() {
       }
       if (fieldId === "maintenanceTractianStatus") {
         byId("maintenanceTractianCode").value = "";
+      }
+      if (fieldId === "maintenanceServiceStatus") {
+        const producing = byId("maintenanceDialog").dataset.producing === "true";
+        if (["waiting", "working"].includes(value) && !producing) {
+          setMaintenanceChoice("maintenanceMachineOutcome", "stopped");
+          byId("maintenanceMonitoringDetails").value = "";
+        } else if (
+          value === "completed" &&
+          ["", "stopped"].includes(byId("maintenanceMachineOutcome").value)
+        ) {
+          setMaintenanceChoice("maintenanceMachineOutcome", "released");
+        }
       }
       updateMaintenanceFormVisibility();
       byId("maintenanceFormError").textContent = "";

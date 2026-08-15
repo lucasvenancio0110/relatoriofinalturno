@@ -123,9 +123,6 @@ ${formatList(maintenance)}
 *MÁQUINAS EM MANUTENÇÃO PRODUZINDO:*
 ${formatList(producing)}
 
-*DETALHAMENTO DAS MANUTENÇÕES:*
-${formatBlocks(maintenanceTracking)}
-
 *SETUP:*
 ${formatList(setup)}
 
@@ -145,6 +142,9 @@ ${formatList(completedMaintenance)}
 
 *DESENVOLVIMENTO:*
 ${formatList(developmentLines(state))}
+
+*DETALHAMENTO DAS MANUTENÇÕES:*
+${formatBlocks(maintenanceTracking)}
 
 *OBSERVAÇÕES:*
 ${formatList(observationLines(state))}
