@@ -2,6 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { updateMaintenanceCase } from "../src/js/maintenance.js";
+import { CELL_ORDER, GENERAL_CELL, UNMAPPED_CELL } from "../src/js/config.js";
 
 import {
   addCompleted,
@@ -14,9 +15,23 @@ import {
   reopenDecision,
   snapshotSubject,
   undoLastAction,
+  visibleCells,
 } from "../src/js/model.js";
 import { parseReport } from "../src/js/parser.js";
 import { fullReport, maintenanceLifecycleReport } from "./fixtures.js";
+
+test("ronda começa na C01 e mantém a sequência até a C10", () => {
+  assert.deepEqual(CELL_ORDER, ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10"]);
+  assert.deepEqual(
+    visibleCells({
+      roundLedger: [
+        { cell: GENERAL_CELL },
+        { cell: UNMAPPED_CELL },
+      ],
+    }),
+    ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", GENERAL_CELL, UNMAPPED_CELL],
+  );
+});
 
 test("progresso mantém denominador após liberar uma máquina", () => {
   const { state } = parseReport({ raw: fullReport, nextShift: 3 });

@@ -1,5 +1,5 @@
 export const APP_NAME = "VENANC Tools — Relatório Final de Turno";
-export const APP_VERSION = "1.7.0";
+export const APP_VERSION = "1.7.1";
 
 export const ACCESS_HASH =
   "5d4399c14c690dd5cea764ac1157d890893108a6e7ea5a35dabb76acc8b4a1eb";
@@ -27,7 +27,9 @@ export const CELLS = Object.freeze({
   "10": [6, 124, 125, 126, 127, 128, 129, 130, 134, 135, 136, 137, 138, 139, 140, 141, 142, 144, 145],
 });
 
-export const CELL_ORDER = Object.freeze(Object.keys(CELLS));
+export const CELL_ORDER = Object.freeze(
+  Object.keys(CELLS).sort((left, right) => Number(left) - Number(right)),
+);
 
 export const ACTIVE_TYPES = Object.freeze([
   "maintenance",

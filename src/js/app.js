@@ -360,7 +360,12 @@ function renderCellOverview() {
           ? `${progress.pending} pend.`
           : "OK";
       const short = cell === GENERAL_CELL ? "GERAL" : cell === UNMAPPED_CELL ? "SEM CÉL." : `C${cell}`;
-      return `<button class="cell-chip ${status} ${cell === selectedCell ? "selected" : ""}" type="button" data-cell="${escapeHtml(cell)}"><span>${escapeHtml(short)}</span><small>${escapeHtml(count)}</small></button>`;
+      const accessibleStatus = conflicts
+        ? `${progress.pending} pendências e ${conflicts} conflitos`
+        : progress.pending
+          ? `${progress.pending} pendências`
+          : "sem pendências";
+      return `<button class="cell-chip ${status} ${cell === selectedCell ? "selected" : ""}" type="button" data-cell="${escapeHtml(cell)}" aria-label="${escapeHtml(`${cellLabel(cell)}, ${accessibleStatus}`)}"><span>${escapeHtml(short)}</span><small>${escapeHtml(count)}</small></button>`;
     })
     .join("");
 }
