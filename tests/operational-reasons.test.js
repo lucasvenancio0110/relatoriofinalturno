@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createEmptyState, addRecord } from "../src/js/model.js";
 import {
   existingAdjustmentReason,
@@ -7,6 +8,8 @@ import {
   meaningfulOperationalReason,
 } from "../src/js/operational-reasons.js";
 import { ensureMaintenanceCase } from "../src/js/maintenance.js";
+
+const appSource = readFileSync(new URL("../src/js/app.js", import.meta.url), "utf8");
 
 function record(state, tnl, type, reason) {
   addRecord(state, {
@@ -60,4 +63,12 @@ test("rótulos genéricos não contam como motivo operacional", () => {
   assert.equal(meaningfulOperationalReason("MANUTENÇÃO", "maintenance"), "");
   assert.equal(meaningfulOperationalReason("EM AJUSTE", "adjustment"), "");
   assert.equal(meaningfulOperationalReason("Vazamento atrás do empurrador", "maintenance"), "Vazamento atrás do empurrador");
+});
+
+test("ronda conecta a regra de motivo a todas as transições críticas", () => {
+  assert.match(appSource, /const savedReason = existingAdjustmentReason\(state, tnl\)/);
+  assert.match(appSource, /const initial = providedReason \|\| existingMaintenanceReason\(state, tnl\)/);
+  assert.match(appSource, /const initialReason = existingMaintenanceReason\(state, tnl\)/);
+  assert.match(appSource, /category === "adjustment" && answer === "no"/);
+  assert.match(appSource, /keepsCategory && \["adjustment", "maintenance"\]\.includes\(category\)/);
 });
