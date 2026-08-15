@@ -53,6 +53,11 @@ import {
 import { parseReport, rebuildInfoFromFields } from "./parser.js";
 import { generateReport } from "./report.js";
 import {
+  closeResponsiveDialog,
+  initResponsiveDialogs,
+  openResponsiveDialog,
+} from "./responsive-dialogs.js";
+import {
   cellForTnl,
   cellLabel,
   cleanLine,
@@ -537,13 +542,13 @@ function showChoice({ title, subtitle = "", source = "", actions = [] }) {
   if (decisionResolver) decisionResolver(null);
   return new Promise((resolve) => {
     decisionResolver = resolve;
-    dialog.showModal();
+    openResponsiveDialog(dialog);
   });
 }
 
-function closeChoice(value = null) {
+async function closeChoice(value = null) {
   const dialog = byId("decisionDialog");
-  if (dialog.open) dialog.close();
+  if (dialog.open) await closeResponsiveDialog(dialog);
   const resolve = decisionResolver;
   decisionResolver = null;
   resolve?.(value);
@@ -556,7 +561,7 @@ function askText({ title, subtitle, initial = "" }) {
   byId("textDialogSubtitle").textContent = subtitle || "";
   input.value = initial;
   dialog.returnValue = "";
-  dialog.showModal();
+  openResponsiveDialog(dialog);
   setTimeout(() => input.focus(), 80);
   return new Promise((resolve) => {
     const handleClose = () => {
@@ -1015,7 +1020,7 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   });
   updateMaintenanceFormVisibility();
   dialog.returnValue = "";
-  dialog.showModal();
+  openResponsiveDialog(dialog);
   dialog.scrollTop = Number(storedDraft?.scrollTop || 0);
   persistMaintenanceDraft();
   setTimeout(() => {
@@ -1044,7 +1049,7 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
 
   return new Promise((resolve) => {
     let result = null;
-    const handleSubmit = (event) => {
+    const handleSubmit = async (event) => {
       if (event.submitter?.value !== "save") return;
       event.preventDefault();
       flushMaintenanceDraft();
@@ -1059,7 +1064,7 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
         return;
       }
       result = validation.value;
-      dialog.close("save");
+      await closeResponsiveDialog(dialog, "save");
     };
     const handleClose = () => {
       flushMaintenanceDraft();
@@ -1927,12 +1932,14 @@ function bindEvents() {
     event.preventDefault();
     closeChoice(null);
   });
-  byId("textDialogForm").addEventListener("submit", (event) => {
+  byId("textDialogForm").addEventListener("submit", async (event) => {
+    event.preventDefault();
     if (event.submitter?.value === "save" && !byId("textDialogInput").value.trim()) {
-      event.preventDefault();
       toast("Digite o motivo");
       byId("textDialogInput").focus();
+      return;
     }
+    await closeResponsiveDialog(byId("textDialog"), event.submitter?.value || "");
   });
   byId("maintenanceForm").addEventListener("click", (event) => {
     const choice = event.target.closest("[data-maintenance-choice]");
@@ -2045,7 +2052,7 @@ function bindEvents() {
     byId("addReason").value = "";
     byId("addStatus").value = "adjustment";
     byId("addDialog").returnValue = "";
-    byId("addDialog").showModal();
+    openResponsiveDialog(byId("addDialog"));
     setTimeout(() => byId("addMachine").focus(), 80);
   });
   byId("addForm").addEventListener("submit", async (event) => {
@@ -2057,7 +2064,7 @@ function bindEvents() {
       byId("addMachine").focus();
       return;
     }
-    byId("addDialog").close("save");
+    await closeResponsiveDialog(byId("addDialog"), "save");
     const saved = await saveManualMachine();
     if (!saved) toast("Não foi possível adicionar a máquina");
   });
@@ -2091,6 +2098,7 @@ function bindEvents() {
 function init() {
   initTheme();
   const restored = restoreSession();
+  initResponsiveDialogs();
   bindEvents();
   renderAll();
   switchTab(activeTab, { save: false });

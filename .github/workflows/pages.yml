@@ -29,9 +29,24 @@ jobs:
           node-version: 22
           cache: npm
       - name: Instalar projeto
-        run: npm ci --ignore-scripts
+        run: npm install --ignore-scripts
       - name: Validar aplicação
         run: npm run validate
+      - name: Exportar lockfile temporário
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: npm-lock-${{ github.sha }}
+          path: package-lock.json
+          retention-days: 1
+      - name: Configurar Pages
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/configure-pages@v5
+      - name: Preparar artefato
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
 
   deploy:
     name: Publicar GitHub Pages
@@ -42,14 +57,6 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Configurar Pages
-        uses: actions/configure-pages@v5
-      - name: Preparar artefato
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: .
       - name: Publicar
         id: deployment
         uses: actions/deploy-pages@v4

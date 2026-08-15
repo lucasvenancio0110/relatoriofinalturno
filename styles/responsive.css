@@ -121,18 +121,23 @@
   }
 
   .modal {
-    width: min(calc(100% - 14px), 560px);
-    max-height: calc(100dvh - 14px);
+    position: fixed;
+    inset-block: auto var(--dialog-keyboard-inset, 0px);
+    inset-inline: 0;
+    width: min(calc(100% - 8px), var(--dialog-max-width));
+    max-height: calc(var(--dialog-viewport-height, 100dvh) - max(8px, env(safe-area-inset-top)));
+    margin: auto auto 0;
+    border-radius: 22px 22px 0 0;
   }
 
   .modal-card {
-    padding: 18px;
-    border-radius: 19px;
+    padding: clamp(13px, 3.8vw, 18px);
+    border-radius: 22px 22px 0 0;
   }
 
   #maintenanceDialog {
     width: min(calc(100% - 12px), 760px);
-    max-height: calc(100dvh - max(10px, env(safe-area-inset-top)));
+    max-height: calc(var(--dialog-viewport-height, 100dvh) - max(8px, env(safe-area-inset-top)));
     margin: auto auto 0;
     overflow-x: hidden;
     overscroll-behavior: contain;
@@ -180,6 +185,34 @@
   }
 }
 
+@media (max-height: 560px) and (orientation: landscape) {
+  .modal {
+    width: min(calc(100% - 16px), var(--dialog-max-width));
+    max-height: calc(var(--dialog-viewport-height, 100dvh) - 8px);
+    margin: auto;
+    border-radius: 18px;
+  }
+
+  .modal-card,
+  #maintenanceDialog .modal-card {
+    padding: 11px 13px;
+    border-radius: 18px;
+  }
+
+  .modal-handle {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .modal *,
+  .modal *::before,
+  .modal *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
 @media (max-width: 390px) {
   .cell-overview {
     grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -211,5 +244,22 @@
   .maintenance-submit .btn {
     padding-inline: 7px;
     font-size: 0.67rem;
+  }
+}
+
+@container popup (max-width: 330px) {
+  .express-options-two,
+  .quick-answer-grid,
+  .outcome-options {
+    grid-template-columns: 1fr;
+  }
+
+  .wide-choice,
+  .release-time-options button:last-child {
+    grid-column: auto;
+  }
+
+  .maintenance-submit .modal-actions-row {
+    grid-template-columns: 1fr;
   }
 }
