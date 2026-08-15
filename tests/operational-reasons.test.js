@@ -9,6 +9,7 @@ import {
 } from "../src/js/operational-reasons.js";
 import { ensureMaintenanceCase } from "../src/js/maintenance.js";
 
+// Regression guard: ajuste e manutenção nunca podem seguir sem motivo operacional real.
 const appSource = readFileSync(new URL("../src/js/app.js", import.meta.url), "utf8");
 
 function record(state, tnl, type, reason) {
