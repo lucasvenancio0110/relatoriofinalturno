@@ -48,11 +48,27 @@ test("rascunho da manutenção integra sessão, ocultação e fechamento da pág
   assert.match(app, /visibilitychange/);
   assert.match(app, /pagehide/);
   assert.match(app, /resumePendingMaintenanceDraft/);
+  assert.match(app, /context\.route/);
+  assert.match(app, /context\.completionConfirmed/);
 });
 
-test("conflito setup e manutenção preserva a sequência operacional", () => {
-  assert.match(app, /resolveSetupBeforeMaintenance/);
-  assert.match(app, /SETUP CONCLUÍDO → ENTROU EM MANUTENÇÃO/);
-  assert.match(app, /SETUP INTERROMPIDO → RETOMAR APÓS MANUTENÇÃO/);
-  assert.match(app, /applySetupBeforeMaintenance/);
+test("máquina em manutenção começa pelo destino e só depois abre o atendimento", () => {
+  assert.match(app, /value: "maintenance_path"/);
+  assert.match(app, /value: "setup_path"/);
+  assert.match(app, /VAI PASSAR EM MANUTENÇÃO/);
+  assert.match(app, /VAI PASSAR EM SETUP/);
+  const flow = app.match(/async function chooseSetupThenMaintenance[\s\S]*?\n}\n\nasync function openMachine/)?.[0] || "";
+  assert.match(flow, /Como a máquina vai entrar no setup/);
+  assert.match(flow, /A manutenção foi concluída/);
+  assert.match(flow, /completionConfirmed: maintenanceCompleted === "yes"/);
+  assert.ok(flow.indexOf("setupMode = await showChoice") < flow.indexOf("maintenanceCompleted = await showChoice"));
+  assert.ok(flow.indexOf("maintenanceCompleted = await showChoice") < flow.indexOf("finishMaintenanceDecision"));
+});
+
+test("roteamento é aplicado somente depois de salvar o atendimento", () => {
+  const finish = app.match(/async function finishMaintenanceDecision[\s\S]*?\n}\n\nasync function resumePendingMaintenanceDraft/)?.[0] || "";
+  assert.match(finish, /const tracking = await showMaintenanceForm/);
+  assert.match(finish, /if \(!tracking\) return false/);
+  assert.match(finish, /const appliedRoute = applyMachineRoute/);
+  assert.ok(finish.indexOf("if (!tracking) return false") < finish.indexOf("applyMachineRoute"));
 });

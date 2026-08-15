@@ -136,12 +136,35 @@ export function normalizeMaintenanceCases(cases = {}) {
   );
 }
 
-export function maintenanceRoundDefaults(value = {}, _context = {}) {
+export function maintenanceRoundDefaults(value = {}, context = {}) {
   const item = normalizeMaintenanceCase(value);
-  if (item.reportedCompleted && !item.reviewed) {
+  const hasExplicitConfirmation = typeof context.completionConfirmed === "boolean";
+  const completionConfirmed = hasExplicitConfirmation
+    ? context.completionConfirmed
+    : item.reportedCompleted && !item.reviewed;
+  if (completionConfirmed) {
     return normalizeMaintenanceCase({
       ...item,
       serviceStatus: "completed",
+    });
+  }
+  if (
+    hasExplicitConfirmation &&
+    !context.completionConfirmed &&
+    context.resetForDecision &&
+    !item.reviewed
+  ) {
+    return normalizeMaintenanceCase({
+      ...item,
+      serviceStatus: "",
+      arrivedShift: null,
+      arrivedAt: "",
+      arrivedUnknown: false,
+      arrivedAtShiftStart: false,
+      finishedShift: null,
+      finishedAt: "",
+      finishedUnknown: false,
+      machineOutcome: "",
     });
   }
   return item;
