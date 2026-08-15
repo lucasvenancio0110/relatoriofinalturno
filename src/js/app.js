@@ -129,6 +129,8 @@ function applyFields(fields = {}) {
     byId(id).value = fields[id] ?? DEFAULT_FIELDS[id] ?? "";
   });
   enforceShiftPair("current");
+  renderShiftControls();
+  renderCounterControls();
 }
 
 function saveSession() {
@@ -269,6 +271,74 @@ function enforceShiftPair(changed) {
     return;
   }
   next.value = String(validNextShift(current.value, next.value));
+}
+
+const CLOSING_COUNTER_IDS = [
+  "checkpoint",
+  "cqFechamento",
+  "cqReinspecao",
+  "sel1",
+  "sel2",
+  "sel3",
+  "selAll",
+  "selTnc",
+];
+
+function normalizeClosingCounter(value) {
+  const parsed = Number.parseInt(String(value ?? "").replace(/\D/g, ""), 10);
+  const safe = Number.isFinite(parsed) ? Math.min(999, Math.max(0, parsed)) : 0;
+  return String(safe).padStart(2, "0");
+}
+
+function renderCounterControls() {
+  CLOSING_COUNTER_IDS.forEach((id) => {
+    const input = byId(id);
+    const output = document.querySelector(`[data-counter-value="${id}"]`);
+    if (!input || !output) return;
+    input.value = normalizeClosingCounter(input.value);
+    output.textContent = input.value;
+    const value = Number(input.value);
+    const card = document.querySelector(`[data-counter-card="${id}"]`);
+    card?.classList.toggle("has-value", value > 0);
+    const minus = document.querySelector(`[data-counter-action="decrement"][data-counter-target="${id}"]`);
+    if (minus) minus.disabled = value <= 0;
+  });
+}
+
+function adjustClosingCounter(id, delta) {
+  if (!CLOSING_COUNTER_IDS.includes(id)) return;
+  const input = byId(id);
+  const current = Number.parseInt(input.value, 10) || 0;
+  input.value = normalizeClosingCounter(current + delta);
+  renderCounterControls();
+  renderReport();
+  saveSession();
+}
+
+function renderShiftControls() {
+  const current = String(byId("currentShift")?.value || "");
+  document.querySelectorAll("[data-shift-picker]").forEach((picker) => {
+    const fieldId = picker.dataset.shiftPicker;
+    const selectedValue = String(byId(fieldId)?.value || "");
+    picker.querySelectorAll("[data-shift-value]").forEach((button) => {
+      const selected = button.dataset.shiftValue === selectedValue;
+      const unavailable = fieldId === "nextShift" && button.dataset.shiftValue === current;
+      button.classList.toggle("selected", selected);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+      button.disabled = unavailable;
+    });
+  });
+}
+
+function selectClosingShift(fieldId, value) {
+  if (!["currentShift", "nextShift"].includes(fieldId)) return;
+  const field = byId(fieldId);
+  if (!field) return;
+  field.value = String(value);
+  enforceShiftPair(fieldId === "currentShift" ? "current" : "next");
+  renderShiftControls();
+  renderReport();
+  saveSession();
 }
 
 function switchTab(tab, { userInitiated = false, save = true } = {}) {
@@ -2202,22 +2272,33 @@ function bindEvents() {
     if (!saved) toast("Não foi possível adicionar a máquina");
   });
 
+  document.querySelectorAll("[data-shift-picker]").forEach((picker) =>
+    picker.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-shift-value]");
+      if (!button || button.disabled) return;
+      selectClosingShift(picker.dataset.shiftPicker, button.dataset.shiftValue);
+    }),
+  );
+  document.querySelector(".counter-grid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-counter-action][data-counter-target]");
+    if (!button) return;
+    adjustClosingCounter(
+      button.dataset.counterTarget,
+      button.dataset.counterAction === "increment" ? 1 : -1,
+    );
+  });
   byId("currentShift").addEventListener("change", () => {
     enforceShiftPair("current");
+    renderShiftControls();
     renderReport();
     saveSession();
   });
   byId("nextShift").addEventListener("change", () => {
     enforceShiftPair("next");
+    renderShiftControls();
     renderReport();
     saveSession();
   });
-  ["checkpoint", "cqFechamento", "cqReinspecao", "sel1", "sel2", "sel3", "selAll", "selTnc"].forEach(
-    (id) => byId(id).addEventListener("input", () => {
-      renderReport();
-      saveSession();
-    }),
-  );
   byId("rawInput").addEventListener("input", saveSession);
   ["development", "observations"].forEach((id) =>
     byId(id).addEventListener("change", () => {

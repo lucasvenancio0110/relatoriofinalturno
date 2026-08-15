@@ -85,31 +85,110 @@
       <section class="tab-panel active" id="panelDados" role="tabpanel" aria-labelledby="tabDados" data-panel="dados">
         <details class="card glass" open>
           <summary>Dados do fechamento</summary>
-          <div class="details-body form-grid">
-            <div class="field">
-              <label for="currentShift">Turno atual</label>
-              <select id="currentShift" class="select">
-                <option value="1">1° TURNO</option>
-                <option value="2" selected>2° TURNO</option>
-                <option value="3">3° TURNO</option>
-              </select>
+          <div class="details-body closing-layout">
+            <div class="shift-card-group" aria-label="Turnos da passagem">
+              <section class="closing-card shift-card">
+                <span class="closing-card-label">Turno atual</span>
+                <select id="currentShift" class="sr-only" aria-label="Turno atual">
+                  <option value="1">1° TURNO</option>
+                  <option value="2" selected>2° TURNO</option>
+                  <option value="3">3° TURNO</option>
+                </select>
+                <div class="shift-segment" data-shift-picker="currentShift" role="group" aria-label="Selecionar turno atual">
+                  <button class="shift-option" type="button" data-shift-value="1" aria-pressed="false"><strong>1°</strong><small>TURNO</small></button>
+                  <button class="shift-option" type="button" data-shift-value="2" aria-pressed="true"><strong>2°</strong><small>TURNO</small></button>
+                  <button class="shift-option" type="button" data-shift-value="3" aria-pressed="false"><strong>3°</strong><small>TURNO</small></button>
+                </div>
+              </section>
+              <section class="closing-card shift-card">
+                <span class="closing-card-label">Próximo turno</span>
+                <select id="nextShift" class="sr-only" aria-label="Próximo turno">
+                  <option value="1">1° TURNO</option>
+                  <option value="2">2° TURNO</option>
+                  <option value="3" selected>3° TURNO</option>
+                </select>
+                <div class="shift-segment" data-shift-picker="nextShift" role="group" aria-label="Selecionar próximo turno">
+                  <button class="shift-option" type="button" data-shift-value="1" aria-pressed="false"><strong>1°</strong><small>TURNO</small></button>
+                  <button class="shift-option" type="button" data-shift-value="2" aria-pressed="false"><strong>2°</strong><small>TURNO</small></button>
+                  <button class="shift-option" type="button" data-shift-value="3" aria-pressed="true"><strong>3°</strong><small>TURNO</small></button>
+                </div>
+              </section>
             </div>
-            <div class="field">
-              <label for="nextShift">Próximo turno</label>
-              <select id="nextShift" class="select">
-                <option value="1">1° TURNO</option>
-                <option value="2">2° TURNO</option>
-                <option value="3" selected>3° TURNO</option>
-              </select>
+
+            <div class="counter-grid" aria-label="Quantidades do fechamento">
+              <section class="closing-card counter-card" data-counter-card="checkpoint">
+                <span class="closing-card-label">Bancada</span>
+                <input id="checkpoint" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="checkpoint" aria-label="Diminuir Bancada">−</button>
+                  <output class="counter-value" data-counter-value="checkpoint" for="checkpoint">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="checkpoint" aria-label="Aumentar Bancada">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="cqFechamento">
+                <span class="closing-card-label">CQ Fechamento</span>
+                <input id="cqFechamento" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="cqFechamento" aria-label="Diminuir CQ Fechamento">−</button>
+                  <output class="counter-value" data-counter-value="cqFechamento" for="cqFechamento">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="cqFechamento" aria-label="Aumentar CQ Fechamento">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="cqReinspecao">
+                <span class="closing-card-label">CQ Reinspeção</span>
+                <input id="cqReinspecao" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="cqReinspecao" aria-label="Diminuir CQ Reinspeção">−</button>
+                  <output class="counter-value" data-counter-value="cqReinspecao" for="cqReinspecao">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="cqReinspecao" aria-label="Aumentar CQ Reinspeção">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="sel1">
+                <span class="closing-card-label">Seleção 1°T</span>
+                <input id="sel1" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="sel1" aria-label="Diminuir Seleção 1° turno">−</button>
+                  <output class="counter-value" data-counter-value="sel1" for="sel1">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="sel1" aria-label="Aumentar Seleção 1° turno">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="sel2">
+                <span class="closing-card-label">Seleção 2°T</span>
+                <input id="sel2" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="sel2" aria-label="Diminuir Seleção 2° turno">−</button>
+                  <output class="counter-value" data-counter-value="sel2" for="sel2">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="sel2" aria-label="Aumentar Seleção 2° turno">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="sel3">
+                <span class="closing-card-label">Seleção 3°T</span>
+                <input id="sel3" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="sel3" aria-label="Diminuir Seleção 3° turno">−</button>
+                  <output class="counter-value" data-counter-value="sel3" for="sel3">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="sel3" aria-label="Aumentar Seleção 3° turno">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="selAll">
+                <span class="closing-card-label">Os 3 turnos</span>
+                <input id="selAll" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="selAll" aria-label="Diminuir Os 3 turnos">−</button>
+                  <output class="counter-value" data-counter-value="selAll" for="selAll">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="selAll" aria-label="Aumentar Os 3 turnos">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="selTnc">
+                <span class="closing-card-label">Seleção TNC</span>
+                <input id="selTnc" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="selTnc" aria-label="Diminuir Seleção TNC">−</button>
+                  <output class="counter-value" data-counter-value="selTnc" for="selTnc">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="selTnc" aria-label="Aumentar Seleção TNC">+</button>
+                </div>
+              </section>
             </div>
-            <div class="field"><label for="checkpoint">Bancada</label><input id="checkpoint" class="input" value="00" /></div>
-            <div class="field"><label for="cqFechamento">CQ Fechamento</label><input id="cqFechamento" class="input" value="00" /></div>
-            <div class="field"><label for="cqReinspecao">CQ Reinspeção</label><input id="cqReinspecao" class="input" value="00" /></div>
-            <div class="field"><label for="sel1">Seleção 1°T</label><input id="sel1" class="input" value="00" /></div>
-            <div class="field"><label for="sel2">Seleção 2°T</label><input id="sel2" class="input" value="00" /></div>
-            <div class="field"><label for="sel3">Seleção 3°T</label><input id="sel3" class="input" value="00" /></div>
-            <div class="field"><label for="selAll">Os 3 turnos</label><input id="selAll" class="input" value="00" /></div>
-            <div class="field"><label for="selTnc">Seleção TNC</label><input id="selTnc" class="input" value="00" /></div>
           </div>
         </details>
 
