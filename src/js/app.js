@@ -877,6 +877,7 @@ function clearMaintenanceDraft(key) {
         String(maintenanceDrafts[a]?.updatedAt || ""),
       ),
   )[0] || "";
+  saveSession();
 }
 
 function showMaintenanceForm(tnl, initial = {}, context = {}) {
