@@ -146,19 +146,23 @@
   }
 
   #maintenanceDialog {
-    width: min(calc(100% - 12px), 760px);
-    max-height: calc(var(--dialog-viewport-height, 100dvh) - max(8px, env(safe-area-inset-top)));
-    margin: auto auto 0;
+    width: min(calc(100% - 20px), 760px);
+    max-height: min(
+      calc(var(--dialog-viewport-height, 100dvh) - 24px),
+      88dvh
+    );
+    margin: auto auto max(8px, env(safe-area-inset-bottom));
     overflow-x: hidden;
     overscroll-behavior: contain;
-    scroll-padding-bottom: 92px;
+    scroll-padding-bottom: 78px;
+    border-radius: 20px;
   }
 
   #maintenanceDialog .modal-card {
     gap: 9px;
     min-width: 0;
     padding: 12px;
-    border-radius: 20px 20px 0 0;
+    border-radius: 20px;
   }
 
   #maintenanceDialog .modal-card > * {
