@@ -60,9 +60,6 @@ export function generateReport(state, fields) {
     sortByTnl(records.filter((item) => item.type === "maintenance_prod")).map(trackedLine),
   );
   const maintenanceCases = Object.values(state.maintenanceCases || {});
-  const monitoring = sortByTnl(
-    maintenanceCases.filter((item) => maintenanceReportBucket(item) === "monitoring"),
-  ).map((item) => maintenanceSummaryEntry(item));
   const completedCases = sortByTnl(
     maintenanceCases.filter((item) => maintenanceReportBucket(item) === "completed"),
   );
@@ -125,9 +122,6 @@ ${formatList(maintenance)}
 
 *MÁQUINAS EM MANUTENÇÃO PRODUZINDO:*
 ${formatList(producing)}
-
-*MÁQUINAS EM ACOMPANHAMENTO:*
-${formatList(monitoring)}
 
 *DETALHAMENTO DAS MANUTENÇÕES:*
 ${formatBlocks(maintenanceTracking)}

@@ -502,7 +502,12 @@ export function parseReport({
   const finalObservations = rawObservations.length ? rawObservations.join("\n") : observations;
   rebuildInfoFromFields(state, finalDevelopment, finalObservations);
 
-  [...new Set(state.records.map((record) => Number(record.tnl)))].forEach((tnl) =>
+  [
+    ...new Set([
+      ...state.records.map((record) => Number(record.tnl)),
+      ...Object.values(state.maintenanceCases).map((item) => Number(item.tnl)),
+    ]),
+  ].forEach((tnl) =>
     registerLedger(state, { key: `A:${tnl}`, kind: "machine", tnl, cell: cellForTnl(tnl) }),
   );
   state.futureItems = sortByTnl(state.futureItems);
