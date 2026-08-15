@@ -1,0 +1,341 @@
+name: Enforce operational reasons v2 once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/enforce-operational-reasons-v2-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    name: Garantir motivo obrigatório v2
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Aplicar regra de motivo obrigatório
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          module = '''import { maintenanceCaseOf } from "./maintenance.js";
+          import { recordsOfTnl } from "./model.js";
+          import { extractReason, normalizeHeader, uniqueStrings } from "./utils.js";
+
+          const MAINTENANCE_RECORD_TYPES = new Set([
+            "maintenance",
+            "maintenance_prod",
+            "maintenance_completed",
+            "maintenance_monitoring",
+          ]);
+
+          const GENERIC_REASONS = Object.freeze({
+            adjustment: new Set([
+              "AJUSTE",
+              "EM AJUSTE",
+              "VAI PASSAR EM AJUSTE",
+              "MOTIVO NAO INFORMADO",
+              "NAO INFORMADO",
+              "N A",
+              "NA",
+            ]),
+            maintenance: new Set([
+              "MANUTENCAO",
+              "EM MANUTENCAO",
+              "VAI PASSAR EM MANUTENCAO",
+              "MANUTENCAO PRODUZINDO",
+              "MANUTENCAO CONCLUIDA",
+              "EM ACOMPANHAMENTO",
+              "CONTINUA PARADA",
+              "MOTIVO NAO INFORMADO",
+              "NAO INFORMADO",
+              "N A",
+              "NA",
+            ]),
+          });
+
+          export function meaningfulOperationalReason(value, category) {
+            const text = String(value || "").trim();
+            if (!text) return "";
+            const key = normalizeHeader(text);
+            return GENERIC_REASONS[category]?.has(key) ? "" : text;
+          }
+
+          function reasonsFromRecords(records, category) {
+            return uniqueStrings(
+              records
+                .flatMap((record) => [extractReason(record.rawText), extractReason(record.displayText)])
+                .map((value) => meaningfulOperationalReason(value, category))
+                .filter(Boolean),
+            );
+          }
+
+          export function existingAdjustmentReason(state, tnl) {
+            const records = recordsOfTnl(state, tnl).filter((record) => record.type === "adjustment");
+            if (!records.length) return "";
+            return reasonsFromRecords(records, "adjustment").join(" + ");
+          }
+
+          export function existingMaintenanceReason(state, tnl) {
+            const records = recordsOfTnl(state, tnl);
+            const maintenanceRecords = records.filter((record) => MAINTENANCE_RECORD_TYPES.has(record.type));
+            const maintenanceCase = maintenanceCaseOf(state, tnl);
+
+            // Caso antigo de manutenção não vale como motivo atual quando a máquina está só em outra categoria.
+            if (!maintenanceRecords.length && (records.length || !maintenanceCase)) return "";
+
+            const currentRecordReasons = reasonsFromRecords(maintenanceRecords, "maintenance");
+            if (currentRecordReasons.length) return currentRecordReasons.join(" + ");
+
+            const key = String(Number(tnl));
+            const storedReasons = Array.isArray(state?.reasons?.maintenance?.[key])
+              ? state.reasons.maintenance[key]
+              : [state?.reasons?.maintenance?.[key]];
+            const caseReasons = maintenanceCase?.reasons || [];
+            return uniqueStrings(
+              [...caseReasons, ...storedReasons]
+                .map((value) => meaningfulOperationalReason(value, "maintenance"))
+                .filter(Boolean),
+            ).join(" + ");
+          }
+          '''
+          # Remove a indentação do YAML preservando a formatação JS.
+          module = "\n".join(line[10:] if line.startswith("          ") else line for line in module.splitlines()) + "\n"
+          Path('src/js/operational-reasons.js').write_text(module, encoding='utf-8')
+
+          app_path = Path('src/js/app.js')
+          app = app_path.read_text(encoding='utf-8')
+
+          if 'from "./operational-reasons.js";' not in app:
+            anchor = '} from "./utils.js";'
+            replacement = '''} from "./utils.js";
+          import {
+            existingAdjustmentReason,
+            existingMaintenanceReason,
+          } from "./operational-reasons.js";'''
+            replacement = "\n".join(line[10:] if line.startswith("          ") else line for line in replacement.splitlines())
+            if anchor not in app:
+              raise SystemExit('Âncora de importação não encontrada')
+            app = app.replace(anchor, replacement, 1)
+
+          app, count = re.subn(
+            r'  const savedReason = state\.reasons\.adjustment\[String\(tnl\)\] \|\| "";',
+            '  const savedReason = existingAdjustmentReason(state, tnl);',
+            app,
+            count=1,
+          )
+          if count != 1 and 'const savedReason = existingAdjustmentReason(state, tnl);' not in app:
+            raise SystemExit('Bloco de motivo do ajuste não encontrado')
+
+          app, count = re.subn(
+            r'  const initial =\n\s+providedReason \|\|\n\s+\(state\.reasons\.maintenance\[String\(tnl\)\] \|\| \[\]\)\.join\(" \+ "\) \|\|\n\s+maintenanceReason\(maintenanceCaseOf\(state, tnl\) \|\| \{\}, ""\);',
+            '  const initial = providedReason || existingMaintenanceReason(state, tnl);',
+            app,
+            count=1,
+          )
+          if count != 1 and 'const initial = providedReason || existingMaintenanceReason(state, tnl);' not in app:
+            raise SystemExit('Bloco de motivo da manutenção não encontrado')
+
+          app, count = re.subn(
+            r'      const initialReason =\n\s+\(state\.reasons\.maintenance\[String\(tnl\)\] \|\| \[\]\)\.join\(" \+ "\) \|\|\n\s+maintenanceReason\(maintenanceCaseOf\(state, tnl\) \|\| \{\}, ""\);',
+            '      const initialReason = existingMaintenanceReason(state, tnl);',
+            app,
+            count=1,
+          )
+          if count != 1 and 'const initialReason = existingMaintenanceReason(state, tnl);' not in app:
+            raise SystemExit('Bloco de motivo da manutenção na liberação não encontrado')
+
+          if 'async function ensureExistingCategoryReason' not in app:
+            anchor = 'async function applyTransition({\n  subjectKey,'
+            helper = '''function saveMissingCategoryReason(tnl, category, reason) {
+            const text = String(reason || "").trim();
+            if (!text) return;
+            const key = String(Number(tnl));
+            if (category === "adjustment") {
+              state.reasons.adjustment[key] = text;
+              recordsOfTnl(state, tnl)
+                .filter((record) => record.type === "adjustment")
+                .forEach((record) => {
+                  record.displayText = `TNL ${padTnl(tnl)} - ${text}`;
+                  record.rawText = `TNL ${padTnl(tnl)} - ${text}`;
+                });
+              return;
+            }
+            if (category === "maintenance") {
+              state.reasons.maintenance[key] = uniqueStrings([
+                ...(state.reasons.maintenance[key] || []),
+                text,
+              ]);
+              ensureMaintenanceCase(state, {
+                tnl,
+                reason: text,
+                sourceSection: "decision",
+                originalLine: `TNL ${padTnl(tnl)} - ${text}`,
+              });
+              recordsOfTnl(state, tnl)
+                .filter((record) => ["maintenance", "maintenance_prod"].includes(record.type))
+                .forEach((record) => {
+                  record.displayText = `TNL ${padTnl(tnl)} - ${text}`;
+                  record.rawText = `TNL ${padTnl(tnl)} - ${text}`;
+                });
+            }
+          }
+
+          async function ensureExistingCategoryReason(tnl, category) {
+            const existing = category === "adjustment"
+              ? existingAdjustmentReason(state, tnl)
+              : existingMaintenanceReason(state, tnl);
+            if (existing) return existing;
+            const label = category === "adjustment" ? "ajuste" : "manutenção";
+            const reason = await askText({
+              title: `Motivo do ${label} — TNL ${padTnl(tnl)}`,
+              subtitle: `Escreva o motivo do ${label} para o relatório.`,
+              initial: "",
+            });
+            if (!reason) return "";
+            saveMissingCategoryReason(tnl, category, reason);
+            return reason;
+          }
+
+          async function applyTransition({
+            subjectKey,'''
+            helper = "\n".join(line[10:] if line.startswith("          ") else line for line in helper.splitlines())
+            if anchor not in app:
+              raise SystemExit('Âncora applyTransition não encontrada')
+            app = app.replace(anchor, helper, 1)
+
+          if 'const keepsCategory = residual === "keep"' not in app:
+            anchor = '    if (residual === "remove") removeCategory(state, tnl, category);\n    if (residual === "future_after" || residual === "future_only") {'
+            replacement = '''    const keepsCategory = residual === "keep" || ["maintenance_after", "maintenance_only"].includes(residual);
+            if (keepsCategory && ["adjustment", "maintenance"].includes(category)) {
+              const keptReason = await ensureExistingCategoryReason(tnl, category);
+              if (!keptReason) {
+                restoreSnapshot(state, before);
+                renderAll();
+                return false;
+              }
+            }
+            if (residual === "remove") removeCategory(state, tnl, category);
+            if (residual === "future_after" || residual === "future_only") {'''
+            replacement = "\n".join(line[10:] if line.startswith("          ") else line for line in replacement.splitlines())
+            if anchor not in app:
+              raise SystemExit('Bloco residual não encontrado')
+            app = app.replace(anchor, replacement, 1)
+
+          if 'const adjustmentReason = await ensureExistingCategoryReason' not in app:
+            anchor = '    if (!answer) return false;\n    categoryAnswers[category] = answer === "yes";'
+            replacement = '''    if (!answer) return false;
+            if (category === "adjustment" && answer === "no") {
+              const adjustmentReason = await ensureExistingCategoryReason(tnl, "adjustment");
+              if (!adjustmentReason) return false;
+            }
+            categoryAnswers[category] = answer === "yes";'''
+            replacement = "\n".join(line[10:] if line.startswith("          ") else line for line in replacement.splitlines())
+            if anchor not in app:
+              raise SystemExit('Bloco de revisão do ajuste não encontrado')
+            app = app.replace(anchor, replacement, 1)
+
+          app = app.replace('subtitle: "Informe o motivo do ajuste.",', 'subtitle: "Escreva o motivo do ajuste para o relatório.",')
+          app = app.replace('subtitle: "Informe o motivo da manutenção.",', 'subtitle: "Escreva o motivo da manutenção para o relatório.",')
+          app_path.write_text(app, encoding='utf-8')
+
+          test = '''import test from "node:test";
+          import assert from "node:assert/strict";
+          import { createEmptyState, addRecord } from "../src/js/model.js";
+          import {
+            existingAdjustmentReason,
+            existingMaintenanceReason,
+            meaningfulOperationalReason,
+          } from "../src/js/operational-reasons.js";
+          import { ensureMaintenanceCase } from "../src/js/maintenance.js";
+
+          function record(state, tnl, type, reason) {
+            addRecord(state, {
+              id: state.nextId++,
+              tnl,
+              type,
+              displayText: `TNL ${String(tnl).padStart(3, "0")} - ${reason}`,
+              rawText: `TNL ${String(tnl).padStart(3, "0")} - ${reason}`,
+              sourceSection: type,
+              emoji: "🔴",
+            });
+          }
+
+          test("setup com motivo antigo de ajuste não reaproveita motivo invisível", () => {
+            const state = createEmptyState();
+            state.reasons.adjustment["60"] = "Ferramenta quebrando";
+            record(state, 60, "setup_active", "EM SETUP");
+            assert.equal(existingAdjustmentReason(state, 60), "");
+          });
+
+          test("ajuste atual reutiliza motivo real e rejeita rótulo genérico", () => {
+            const state = createEmptyState();
+            record(state, 60, "adjustment", "Correção de medida no diâmetro");
+            assert.equal(existingAdjustmentReason(state, 60), "Correção de medida no diâmetro");
+            const generic = createEmptyState();
+            record(generic, 61, "adjustment", "EM AJUSTE");
+            assert.equal(existingAdjustmentReason(generic, 61), "");
+          });
+
+          test("setup com caso antigo de manutenção exige novo motivo", () => {
+            const state = createEmptyState();
+            record(state, 60, "setup_active", "EM SETUP");
+            state.reasons.maintenance["60"] = ["Sensor sem leitura"];
+            ensureMaintenanceCase(state, { tnl: 60, reason: "Sensor sem leitura", sourceSection: "decision" });
+            assert.equal(existingMaintenanceReason(state, 60), "");
+          });
+
+          test("manutenção atual reutiliza motivo real", () => {
+            const state = createEmptyState();
+            record(state, 60, "maintenance", "Curto no empurrador de barras");
+            assert.equal(existingMaintenanceReason(state, 60), "Curto no empurrador de barras");
+          });
+
+          test("caso de manutenção sem registro preserva motivo importado", () => {
+            const state = createEmptyState();
+            ensureMaintenanceCase(state, { tnl: 124, reason: "Eixo H1 com batimento", sourceSection: "maintenance_tracking" });
+            assert.equal(existingMaintenanceReason(state, 124), "Eixo H1 com batimento");
+          });
+
+          test("rótulos genéricos não contam como motivo operacional", () => {
+            assert.equal(meaningfulOperationalReason("MANUTENÇÃO", "maintenance"), "");
+            assert.equal(meaningfulOperationalReason("EM AJUSTE", "adjustment"), "");
+            assert.equal(meaningfulOperationalReason("Vazamento atrás do empurrador", "maintenance"), "Vazamento atrás do empurrador");
+          });
+          '''
+          test = "\n".join(line[10:] if line.startswith("          ") else line for line in test.splitlines()) + "\n"
+          Path('tests/operational-reasons.test.js').write_text(test, encoding='utf-8')
+          PY
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci
+
+      - name: Validar aplicação
+        run: npm test
+
+      - name: Commit da alteração
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/js/app.js src/js/operational-reasons.js tests/operational-reasons.test.js
+          if git diff --cached --quiet; then
+            echo "Nenhuma alteração necessária"
+            exit 0
+          fi
+          git commit -m "fix: require reasons for adjustment and maintenance"
+          git push
