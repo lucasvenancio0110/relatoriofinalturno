@@ -1,5 +1,5 @@
 export const APP_NAME = "VENANC Tools — Relatório Final de Turno";
-export const APP_VERSION = "1.8.1";
+export const APP_VERSION = "1.8.2";
 
 export const ACCESS_HASH =
   "5d4399c14c690dd5cea764ac1157d890893108a6e7ea5a35dabb76acc8b4a1eb";
