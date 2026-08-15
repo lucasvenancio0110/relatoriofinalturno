@@ -29,16 +29,9 @@ jobs:
           node-version: 22
           cache: npm
       - name: Instalar projeto
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
       - name: Validar aplicação
         run: npm run validate
-      - name: Exportar lockfile temporário
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
-        with:
-          name: npm-lock-${{ github.sha }}
-          path: package-lock.json
-          retention-days: 1
       - name: Configurar Pages
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: actions/configure-pages@v5
