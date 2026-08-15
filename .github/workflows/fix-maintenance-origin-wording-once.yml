@@ -25,8 +25,6 @@ jobs:
           from pathlib import Path
           import re
 
-          # 1) UI: deixar claro que "turno anterior" descreve a PARADA,
-          # não quem abriu o chamado.
           index = Path("index.html")
           html = index.read_text(encoding="utf-8")
           html = html.replace(
@@ -40,7 +38,6 @@ jobs:
               1,
           )
 
-          # Cache-bust real para o Safari baixar os arquivos novos.
           cache = "1.8.5-20260815-1342"
           html = re.sub(
               r'(\./(?:styles/(?:tokens|base|components|responsive)\.css|src/js/(?:zoom-lock|app)\.js))\?v=[^\"]+',
@@ -49,12 +46,10 @@ jobs:
           )
           index.write_text(html, encoding="utf-8")
 
-          # 2) Relatório: nunca inferir que o chamado foi aberto no turno anterior
-          # só porque a máquina já veio parada daquele turno.
           maintenance = Path("src/js/maintenance.js")
           text = maintenance.read_text(encoding="utf-8")
           old = '''  if (value.initiationMode === "production" && value.callOrigin === "previous") {\n    lines.push(`Chamado aberto pelo ${value.callOpenedShift || previousShift(currentShift)}º turno.`);\n  } else if (value.initiationMode === "production" && value.callOrigin === "current") {'''
-          new = '''  if (value.initiationMode === "production" && value.callOrigin === "previous") {\n    lines.push("Máquina já estava parada desde o turno anterior.");\n  } else if (value.initiationMode === "production" && value.callOrigin === "current") {'''
+          new = '''  if (value.initiationMode === "production" && value.callOrigin === "previous") {\n    const stoppedSinceShift = value.callOpenedShift || previousShift(currentShift);\n    lines.push(`Máquina já estava parada desde o ${stoppedSinceShift}º turno.`);\n  } else if (value.initiationMode === "production" && value.callOrigin === "current") {'''
           if old not in text:
               raise SystemExit("Bloco de relatório de origem anterior não encontrado")
           text = text.replace(old, new, 1)
@@ -65,20 +60,36 @@ jobs:
               1,
           )
 
-          # Reimportação: aceitar a nova frase sem perder compatibilidade com relatórios antigos.
           anchor = '''  let update = null;\n  let reviewed = true;\n  let match = normalized.match(/^Chamado aberto pelo\\s*([123])\\s*[º°o]?\\s*turno(?:\\s+as\\s+(\\d{2}:\\d{2}))?/i);\n  if (match) {'''
-          replacement = '''  let update = null;\n  let reviewed = true;\n  if (/^Maquina ja estava parada desde o turno anterior/i.test(normalized)) {\n    update = {\n      initiationMode: "production",\n      callOrigin: "previous",\n      callOpenedShift: previousShift(currentShift),\n      callOpenedAt: "",\n      callOpenedUnknown: false,\n    };\n  }\n  let match = normalized.match(/^Chamado aberto pelo\\s*([123])\\s*[º°o]?\\s*turno(?:\\s+as\\s+(\\d{2}:\\d{2}))?/i);\n  if (!update && match) {'''
+          replacement = '''  let update = null;\n  let reviewed = true;\n  let match = normalized.match(/^Maquina ja estava parada desde o\\s*([123])\\s*[º°o]?\\s*turno/i);\n  if (match) {\n    update = {\n      initiationMode: "production",\n      callOrigin: "previous",\n      callOpenedShift: Number(match[1]),\n      callOpenedAt: "",\n      callOpenedUnknown: false,\n    };\n  }\n  match = normalized.match(/^Chamado aberto pelo\\s*([123])\\s*[º°o]?\\s*turno(?:\\s+as\\s+(\\d{2}:\\d{2}))?/i);\n  if (!update && match) {'''
           if anchor not in text:
               raise SystemExit("Âncora do parser de manutenção não encontrada")
           text = text.replace(anchor, replacement, 1)
           maintenance.write_text(text, encoding="utf-8")
 
-          # 3) Teste de regressão para a frase que o usuário encontrou no relatório.
-          tests = Path("tests/maintenance.test.js")
-          t = tests.read_text(encoding="utf-8")
-          if "turno anterior descreve a parada sem inventar quem abriu o chamado" not in t:
-              t += '''\n\ntest("turno anterior descreve a parada sem inventar quem abriu o chamado", () => {\n  const detail = maintenanceDecisionDetail({\n    tnl: 98,\n    reasons: ["Variação de comprimento"],\n    initiationMode: "production",\n    callOrigin: "previous",\n    callOpenedShift: 1,\n    tractianCode: "2552",\n    serviceStatus: "completed",\n    arrivedShift: 2,\n    arrivedAtShiftStart: true,\n    finishedShift: 2,\n    finishedAt: "13:41",\n    machineOutcome: "released",\n    reviewed: true,\n  }, 2);\n\n  assert.match(detail, /Máquina já estava parada desde o turno anterior/);\n  assert.doesNotMatch(detail, /Chamado aberto pelo 1º turno/);\n  assert.match(detail, /Chamado Tractian: #2552/);\n});\n'''
-          tests.write_text(t, encoding="utf-8")
+          maintenance_tests = Path("tests/maintenance.test.js")
+          mt = maintenance_tests.read_text(encoding="utf-8")
+          if "turno anterior descreve a parada sem inventar quem abriu o chamado" not in mt:
+              mt += '''\n\ntest("turno anterior descreve a parada sem inventar quem abriu o chamado", () => {\n  const detail = maintenanceDecisionDetail({\n    tnl: 98,\n    reasons: ["Variação de comprimento"],\n    initiationMode: "production",\n    callOrigin: "previous",\n    callOpenedShift: 1,\n    tractianCode: "2552",\n    serviceStatus: "completed",\n    arrivedShift: 2,\n    arrivedAtShiftStart: true,\n    finishedShift: 2,\n    finishedAt: "13:41",\n    machineOutcome: "released",\n    reviewed: true,\n  }, 2);\n\n  assert.match(detail, /Máquina já estava parada desde o 1º turno/);\n  assert.doesNotMatch(detail, /Chamado aberto pelo 1º turno/);\n  assert.match(detail, /Chamado Tractian: #2552/);\n});\n'''
+          maintenance_tests.write_text(mt, encoding="utf-8")
+
+          report_tests = Path("tests/report.test.js")
+          rt = report_tests.read_text(encoding="utf-8")
+          rt = rt.replace(
+              'assert.match(trackingBlock, /Chamado aberto pelo 1º turno/);',
+              'assert.match(trackingBlock, /Máquina já estava parada desde o 1º turno/);',
+              1,
+          )
+          report_tests.write_text(rt, encoding="utf-8")
+
+          static_tests = Path("tests/static.test.js")
+          st = static_tests.read_text(encoding="utf-8")
+          st = st.replace(
+              'assert.match(maintenanceHtml, /VEIO DO TURNO ANTERIOR/);',
+              'assert.match(maintenanceHtml, /JÁ VEIO PARADA DO TURNO ANTERIOR/);',
+              1,
+          )
+          static_tests.write_text(st, encoding="utf-8")
           PY
 
       - name: Node.js
