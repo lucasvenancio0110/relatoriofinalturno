@@ -39,4 +39,18 @@ for (const file of filesUnder(join(root, "src", "js")).filter((path) => extname(
   if (result.status !== 0) throw new Error(result.stderr || `Falha de sintaxe em ${file}`);
 }
 
-console.log(`Validação estática concluída: ${ids.length} IDs únicos e módulos com sintaxe válida.`);
+for (const file of filesUnder(join(root, "styles")).filter((path) => extname(path) === ".css")) {
+  const source = readFileSync(file, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  let depth = 0;
+  for (const character of source) {
+    if (character === "{") depth += 1;
+    if (character === "}") depth -= 1;
+    if (depth < 0) throw new Error(`Chave CSS excedente em ${file}`);
+  }
+  if (depth !== 0) throw new Error(`Bloco CSS incompleto em ${file}`);
+  if (/\b(?:min-h|max-h)\s*$/i.test(source.trim())) {
+    throw new Error(`Declaração CSS truncada em ${file}`);
+  }
+}
+
+console.log(`Validação estática concluída: ${ids.length} IDs únicos, JS válido e CSS íntegro.`);

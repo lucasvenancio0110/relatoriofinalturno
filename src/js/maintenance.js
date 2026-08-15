@@ -111,6 +111,7 @@ export function normalizeMaintenanceCase(value = {}, tnl = value?.tnl) {
       : null,
     arrivedAt: String(value?.arrivedAt || ""),
     arrivedUnknown: Boolean(value?.arrivedUnknown),
+    arrivedAtShiftStart: Boolean(value?.arrivedAtShiftStart),
     finishedShift: [1, 2, 3].includes(Number(value?.finishedShift))
       ? Number(value.finishedShift)
       : null,
@@ -135,23 +136,32 @@ export function normalizeMaintenanceCases(cases = {}) {
   );
 }
 
-export function maintenanceRoundDefaults(value = {}, { producing = false } = {}) {
+export function maintenanceRoundDefaults(value = {}, _context = {}) {
   const item = normalizeMaintenanceCase(value);
   if (item.reportedCompleted && !item.reviewed) {
     return normalizeMaintenanceCase({
       ...item,
       serviceStatus: "completed",
-      machineOutcome: "released",
     });
   }
-  if (
-    !producing &&
-    ["waiting", "working"].includes(item.serviceStatus) &&
-    !item.machineOutcome
-  ) {
-    return normalizeMaintenanceCase({ ...item, machineOutcome: "stopped" });
-  }
   return item;
+}
+
+export function maintenanceRoundState({
+  reportedCompleted = false,
+  arrivalMode = "",
+  releaseMode = "",
+} = {}) {
+  const arrived = ["shift_start", "now", "manual", "unknown"].includes(arrivalMode);
+  const released = ["now", "manual", "unknown"].includes(releaseMode);
+  let serviceStatus = "";
+
+  if (arrivalMode === "not_arrived") serviceStatus = "waiting";
+  else if (reportedCompleted) serviceStatus = "completed";
+  else if (arrived && releaseMode === "working") serviceStatus = "working";
+  else if (arrived && released) serviceStatus = "completed";
+
+  return { arrived, released, serviceStatus };
 }
 
 export function maintenanceCaseOf(state, tnl) {
@@ -218,21 +228,7 @@ function hasTimeOrUnknown(value, unknown) {
 export function validateMaintenanceUpdate(value) {
   const item = normalizeMaintenanceCase(value);
   const errors = [];
-  if (!item.initiationMode) errors.push("Informe como a manutenção começou.");
-  if (item.initiationMode === "production" && !["previous", "current"].includes(item.callOrigin)) {
-    errors.push("Informe em qual turno a produção abriu o chamado.");
-  }
-  if (
-    item.initiationMode === "production" &&
-    item.callOrigin === "current" &&
-    !hasTimeOrUnknown(item.callOpenedAt, item.callOpenedUnknown)
-  ) {
-    errors.push("Informe o horário de abertura ou marque como não informado.");
-  }
-  if (
-    ["production", "maintenance"].includes(item.initiationMode) &&
-    !item.tractianStatus
-  ) {
+  if (!item.tractianStatus) {
     errors.push("Informe o código Tractian ou selecione uma das alternativas.");
   }
   if (item.tractianStatus === "informed" && !item.tractianCode) {
@@ -241,16 +237,10 @@ export function validateMaintenanceUpdate(value) {
   if (!item.serviceStatus) errors.push("Informe a situação da manutenção.");
   if (
     ["working", "completed"].includes(item.serviceStatus) &&
+    !item.arrivedAtShiftStart &&
     !hasTimeOrUnknown(item.arrivedAt, item.arrivedUnknown)
   ) {
-    errors.push("Informe o horário de início da atuação ou marque como não informado.");
-  }
-  if (
-    ["working", "completed"].includes(item.serviceStatus) &&
-    item.arrivedAt &&
-    !item.arrivedShift
-  ) {
-    errors.push("Informe em qual turno a atuação começou.");
+    errors.push("Informe quando a manutenção chegou.");
   }
   if (
     item.serviceStatus === "completed" &&
@@ -258,15 +248,12 @@ export function validateMaintenanceUpdate(value) {
   ) {
     errors.push("Informe o horário de término ou marque como não informado.");
   }
-  if (item.serviceStatus === "completed" && item.finishedAt && !item.finishedShift) {
-    errors.push("Informe em qual turno a atuação terminou.");
-  }
   if (!item.machineOutcome) errors.push("Informe como a máquina ficou.");
   if (
     ["waiting", "working"].includes(item.serviceStatus) &&
-    !["monitoring", "stopped"].includes(item.machineOutcome)
+    !["released", "stopped"].includes(item.machineOutcome)
   ) {
-    errors.push("Enquanto o atendimento não terminou, a máquina deve ficar em acompanhamento ou parada.");
+    errors.push("Informe se a máquina está liberada/produzindo ou parada.");
   }
   if (item.machineOutcome === "monitoring" && !item.monitoringDetails) {
     errors.push("Informe o que precisa ser acompanhado.");
@@ -274,7 +261,15 @@ export function validateMaintenanceUpdate(value) {
   return { valid: errors.length === 0, errors, value: item };
 }
 
-function shiftTime(shift, time, unknown, fallback = "horário não informado") {
+function shiftTime(
+  shift,
+  time,
+  unknown,
+  { shiftStart = false, currentShift = null, fallback = "horário não informado" } = {},
+) {
+  if (shiftStart) {
+    return `já estava em manutenção no início do ${shift || Number(currentShift)}º turno`;
+  }
   if (time) return `${shift ? `${shift}º turno às ` : "às "}${time}`;
   if (unknown) return fallback;
   return fallback;
@@ -284,7 +279,7 @@ export function maintenanceTrackingLines(item, currentShift) {
   const value = normalizeMaintenanceCase(item);
   if (!value.reviewed) {
     return value.reportedCompleted
-      ? ["Conclusão informada pelo preparador; falta registrar origem e horários."]
+      ? ["Conclusão informada pelo preparador; falta registrar os horários e o chamado."]
       : [];
   }
 
@@ -302,7 +297,7 @@ export function maintenanceTrackingLines(item, currentShift) {
     lines.push("Intervenção iniciada pela própria manutenção.");
   } else if (value.initiationMode === "pending") {
     lines.push("Chamado ainda não foi aberto e a manutenção não iniciou.");
-  } else {
+  } else if (value.initiationMode === "unknown") {
     lines.push("Origem do atendimento não confirmada.");
   }
 
@@ -317,11 +312,25 @@ export function maintenanceTrackingLines(item, currentShift) {
   if (value.serviceStatus === "waiting") {
     lines.push("Manutenção ainda não chegou ou não iniciou a atuação.");
   } else if (value.serviceStatus === "working") {
-    lines.push(`Início da atuação: ${shiftTime(value.arrivedShift, value.arrivedAt, value.arrivedUnknown)}.`);
+    lines.push(`Início da atuação: ${shiftTime(
+      value.arrivedShift,
+      value.arrivedAt,
+      value.arrivedUnknown,
+      { shiftStart: value.arrivedAtShiftStart, currentShift },
+    )}.`);
     lines.push(`Continuava em manutenção no fechamento do ${Number(currentShift)}º turno.`);
   } else if (value.serviceStatus === "completed") {
-    lines.push(`Início da atuação: ${shiftTime(value.arrivedShift, value.arrivedAt, value.arrivedUnknown)}.`);
-    lines.push(`Liberação da manutenção: ${shiftTime(value.finishedShift, value.finishedAt, value.finishedUnknown)}.`);
+    lines.push(`Início da atuação: ${shiftTime(
+      value.arrivedShift,
+      value.arrivedAt,
+      value.arrivedUnknown,
+      { shiftStart: value.arrivedAtShiftStart, currentShift },
+    )}.`);
+    lines.push(`Liberação da manutenção: ${shiftTime(
+      value.finishedShift,
+      value.finishedAt,
+      value.finishedUnknown,
+    )}.`);
   } else if (value.serviceStatus === "resolved_without") {
     lines.push("Problema resolvido sem atuação da manutenção.");
   } else {
@@ -379,7 +388,13 @@ export function maintenanceReportBucket(item) {
   }
   if (value.machineOutcome === "monitoring") return "monitoring";
   if (value.machineOutcome === "stopped") return "stopped";
-  if (["released", "adjustment", "setup"].includes(value.machineOutcome)) return "completed";
+  if (
+    ["completed", "resolved_without"].includes(value.serviceStatus) &&
+    ["released", "adjustment", "setup"].includes(value.machineOutcome)
+  ) {
+    return "completed";
+  }
+  if (["waiting", "working"].includes(value.serviceStatus)) return "active";
   return value.reportedCompleted ? "completed" : "active";
 }
 
@@ -387,7 +402,7 @@ export function maintenanceActionLabel(item) {
   const value = normalizeMaintenanceCase(item || {});
   return value.reportedCompleted && !value.reviewed
     ? "REGISTRAR HORÁRIOS DA MANUTENÇÃO"
-    : "ATUALIZAR ACOMPANHAMENTO DA MANUTENÇÃO";
+    : "REGISTRAR SITUAÇÃO DA MANUTENÇÃO";
 }
 
 function relativeCallOrigin(openedShift, currentShift) {
@@ -424,12 +439,21 @@ export function parseMaintenanceTrackingLine(item, line, currentShift) {
     update = { tractianCode: "", tractianStatus: "not_found" };
   } else if (/^Manutencao ainda nao chegou/i.test(normalized)) {
     update = { serviceStatus: "waiting", arrivedAt: "", arrivedUnknown: false };
+  } else if ((match = normalized.match(/^Inicio da atuacao:\s*ja estava em manutencao no inicio do\s+([123])\s*[º°o]?\s*turno/i))) {
+    update = {
+      serviceStatus: value.serviceStatus === "completed" ? "completed" : "working",
+      arrivedShift: Number(match[1]),
+      arrivedAt: "",
+      arrivedUnknown: false,
+      arrivedAtShiftStart: true,
+    };
   } else if ((match = normalized.match(/^Inicio da atuacao:\s*(?:([123])\s*[º°o]?\s*turno\s+)?(?:as\s+)?(\d{2}:\d{2})/i))) {
     update = {
       serviceStatus: value.serviceStatus === "completed" ? "completed" : "working",
       arrivedShift: match[1] ? Number(match[1]) : null,
       arrivedAt: match[2],
       arrivedUnknown: false,
+      arrivedAtShiftStart: false,
     };
   } else if (/^Inicio da atuacao:\s*horario nao informado/i.test(normalized)) {
     update = {
@@ -437,6 +461,7 @@ export function parseMaintenanceTrackingLine(item, line, currentShift) {
       arrivedShift: null,
       arrivedAt: "",
       arrivedUnknown: true,
+      arrivedAtShiftStart: false,
     };
   } else if ((match = normalized.match(/^(?:Termino da atuacao|Liberacao da manutencao):\s*(?:([123])\s*[º°o]?\s*turno\s+)?(?:as\s+)?(\d{2}:\d{2})/i))) {
     update = {
@@ -503,7 +528,7 @@ export function parseMaintenanceTrackingLine(item, line, currentShift) {
     update = { monitoringDetails: raw.split(":").slice(1).join(":").trim() };
   } else if ((match = normalized.match(/^Detalhes da atuacao:\s*(.+)$/i))) {
     update = { details: raw.split(":").slice(1).join(":").trim() };
-  } else if (/^Conclusao informada pelo preparador; falta (?:confirmar o atendimento|registrar origem e horarios)/i.test(normalized)) {
+  } else if (/^Conclusao informada pelo preparador; falta (?:confirmar o atendimento|registrar origem e horarios|registrar os horarios e o chamado)/i.test(normalized)) {
     update = { reportedCompleted: true };
     reviewed = false;
   }

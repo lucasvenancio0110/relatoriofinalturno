@@ -6,6 +6,7 @@ import { resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const html = readFileSync(resolve(root, "index.html"), "utf8");
 const app = readFileSync(resolve(root, "src/js/app.js"), "utf8");
+const maintenanceHtml = html.match(/<dialog[^>]+id="maintenanceDialog"[\s\S]*?<\/dialog>/)?.[0] || "";
 
 test("HTML usa módulos e não contém senha em texto aberto", () => {
   assert.match(html, /type="module" src="\.\/src\/js\/app\.js"/);
@@ -20,24 +21,25 @@ test("viewport permite zoom e diálogos possuem semântica nativa", () => {
   assert.match(html, /id="maintenanceCallOrigin"/);
   assert.match(html, /id="maintenanceServiceStatus"/);
   assert.match(html, /id="maintenanceMachineOutcome"/);
-  ["LIBERADA", "EM ACOMPANHAMENTO", "CONTINUA PARADA", "PASSOU PARA AJUSTE", "PASSOU PARA SETUP"].forEach(
+  ["LIBERADA \/ PRODUZINDO", "PARADA"].forEach(
     (option) => assert.ok(html.includes(option), `Resultado ausente: ${option}`),
   );
 });
 
-test("ronda expressa evita selects nativos e identifica o chamado Tractian", () => {
+test("ronda rápida usa no máximo quatro blocos progressivos", () => {
   assert.doesNotMatch(html, /<select[^>]+id="maintenance(?:CallOrigin|ServiceStatus|MachineOutcome)"/i);
-  assert.match(html, /id="maintenanceInitiationMode"/);
   assert.match(html, /id="maintenanceTractianCode"[^>]+inputmode="numeric"/);
-  assert.match(html, /data-time-mode="now"/);
+  assert.match(maintenanceHtml, /AINDA NÃO CHEGOU/);
+  assert.match(maintenanceHtml, /JÁ ESTAVA NO INÍCIO DO TURNO/);
+  assert.match(maintenanceHtml, /CHEGOU AGORA/);
+  assert.match(maintenanceHtml, /AINDA ESTÁ EM MANUTENÇÃO/);
+  assert.match(maintenanceHtml, /LIBEROU AGORA/);
   assert.match(html, /data-time-mode="manual"/);
   assert.match(html, /data-time-mode="unknown"/);
   assert.match(html, /Rascunho salvo automaticamente/i);
-  assert.match(html, /id="maintenanceCompletionNotice"/);
-  assert.match(html, /id="maintenanceStatusOptions"/);
   assert.match(html, /id="maintenanceOutcomeStep"/);
-  assert.match(html, /NÃO · AINDA ESTÁ EM MANUTENÇÃO/);
-  assert.match(html, /SIM · LIBERADA DA MANUTENÇÃO/);
+  assert.equal((maintenanceHtml.match(/class="maintenance-step/g) || []).length, 4);
+  assert.doesNotMatch(maintenanceHtml, /Quem abriu o chamado|Detalhes da atuação|EM ACOMPANHAMENTO|PASSOU PARA AJUSTE|PASSOU PARA SETUP/i);
 });
 
 test("rascunho da manutenção integra sessão, ocultação e fechamento da página", () => {

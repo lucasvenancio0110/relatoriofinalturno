@@ -49,7 +49,7 @@ test("check informado pelo preparador continua visível até a confirmação", (
   const { state } = parseReport({ raw: maintenanceLifecycleReport, nextShift: 3 });
   const report = generateReport(state, defaultFields);
   assert.match(report, /✅ TNL 019 - QUEBRA DE BEDAME/);
-  assert.match(report, /Conclusão informada pelo preparador; falta registrar origem e horários/);
+  assert.match(report, /Conclusão informada pelo preparador; falta registrar os horários e o chamado/);
   assert.match(report, /✅ TNL 043 - MANUTENÇÃO/);
   assert.match(report, /✅ TNL 143 - MANUTENÇÃO/);
 });
@@ -208,4 +208,24 @@ test("intervenção direta da manutenção e Tractian sobrevivem ao copiar e rei
   assert.equal(item.finishedShift, 2);
   assert.equal(item.finishedAt, "17:20");
   assert.equal(item.machineOutcome, "released");
+});
+
+test("marcação de início do turno sobrevive ao copiar e reimportar", () => {
+  const { state } = parseReport({ raw: maintenanceLifecycleReport, currentShift: 2, nextShift: 3 });
+  updateMaintenanceCase(state, 48, {
+    tractianStatus: "none",
+    serviceStatus: "working",
+    arrivedShift: 2,
+    arrivedAtShiftStart: true,
+    machineOutcome: "stopped",
+  });
+
+  const copied = generateReport(state, defaultFields);
+  assert.match(copied, /já estava em manutenção no início do 2º turno/);
+
+  const imported = parseReport({ raw: copied, currentShift: 3, nextShift: 1 }).state;
+  const item = imported.maintenanceCases["48"];
+  assert.equal(item.arrivedAtShiftStart, true);
+  assert.equal(item.arrivedShift, 2);
+  assert.equal(item.serviceStatus, "working");
 });

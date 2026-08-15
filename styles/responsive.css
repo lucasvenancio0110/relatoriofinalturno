@@ -149,14 +149,7 @@
   }
 
   .maintenance-step {
-    grid-template-columns: 27px minmax(0, 1fr);
-    gap: 8px;
     padding: 11px;
-  }
-
-  .step-number {
-    width: 25px;
-    height: 25px;
   }
 
   .express-options button {
@@ -167,7 +160,7 @@
 
   .time-mode-options button {
     min-height: 40px;
-    font-size: 0.6rem;
+    font-size: 0.64rem;
   }
 
   .maintenance-grid,
@@ -190,6 +183,7 @@
   }
 
   .express-options-two,
+  .quick-answer-grid,
   .outcome-options {
     grid-template-columns: 1fr;
   }
