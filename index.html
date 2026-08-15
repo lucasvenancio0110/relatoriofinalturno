@@ -282,7 +282,7 @@
                 <button type="button" data-maintenance-acted="yes">SIM, JÁ ATUOU</button>
               </div>
               <div id="maintenanceArrivedTimeOptions" hidden>
-                <p class="step-question">Que horas chegaram?</p>
+                <p class="step-question" id="maintenanceArrivedTimeQuestion">Quando chegaram?</p>
                 <div class="time-mode-options quick-answer-grid">
                   <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="shift_start">INÍCIO DO TURNO</button>
                   <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="now">AGORA</button>
@@ -303,7 +303,7 @@
             <div class="step-content">
               <p class="step-kicker">4 · LIBERAÇÃO</p>
               <h3 id="maintenanceFinishedLabel">Que horas liberaram?</h3>
-              <div class="time-mode-options quick-answer-grid">
+              <div class="time-mode-options quick-answer-grid release-time-options">
                 <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="now">AGORA</button>
                 <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="manual">INFORMAR HORA</button>
                 <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="unknown">NÃO SEI A HORA</button>
@@ -319,9 +319,9 @@
 
         <p class="form-error" id="maintenanceFormError" role="alert"></p>
         <div class="maintenance-submit">
-          <p class="autosave-status" id="maintenanceAutosaveStatus" role="status"><span aria-hidden="true">●</span> Rascunho salvo automaticamente neste dispositivo</p>
+          <p class="autosave-status" id="maintenanceAutosaveStatus" role="status"><span aria-hidden="true">●</span> Rascunho salvo neste dispositivo</p>
           <div class="modal-actions modal-actions-row">
-            <button class="btn btn-primary" id="maintenanceSave" value="save">SALVAR E IR PARA A PRÓXIMA</button>
+            <button class="btn btn-primary" id="maintenanceSave" value="save">SALVAR E AVANÇAR</button>
             <button class="btn btn-soft" value="cancel" formnovalidate>FECHAR</button>
           </div>
         </div>

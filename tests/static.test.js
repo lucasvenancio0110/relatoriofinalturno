@@ -6,6 +6,8 @@ import { resolve } from "node:path";
 const root = resolve(import.meta.dirname, "..");
 const html = readFileSync(resolve(root, "index.html"), "utf8");
 const app = readFileSync(resolve(root, "src/js/app.js"), "utf8");
+const baseCss = readFileSync(resolve(root, "styles/base.css"), "utf8");
+const responsiveCss = readFileSync(resolve(root, "styles/responsive.css"), "utf8");
 const maintenanceHtml = html.match(/<dialog[^>]+id="maintenanceDialog"[\s\S]*?<\/dialog>/)?.[0] || "";
 
 test("HTML usa módulos e não contém senha em texto aberto", () => {
@@ -38,10 +40,22 @@ test("ronda rápida usa no máximo quatro blocos progressivos", () => {
   assert.match(maintenanceHtml, /Que horas liberaram/);
   assert.match(html, /data-time-mode="manual"/);
   assert.match(html, /data-time-mode="unknown"/);
-  assert.match(html, /Rascunho salvo automaticamente/i);
+  assert.match(html, /Rascunho salvo neste dispositivo/i);
   assert.match(html, /id="maintenanceOutcomeStep"/);
   assert.equal((maintenanceHtml.match(/class="maintenance-step/g) || []).length, 4);
   assert.doesNotMatch(maintenanceHtml, /Quem abriu o chamado|Detalhes da atuação|EM ACOMPANHAMENTO|PASSOU PARA AJUSTE|PASSOU PARA SETUP/i);
+});
+
+test("formulário de manutenção permanece compacto e sem estouro no celular", () => {
+  assert.match(maintenanceHtml, /SALVAR E AVANÇAR/);
+  assert.match(maintenanceHtml, /class="time-mode-options quick-answer-grid release-time-options"/);
+  assert.match(baseCss, /\.manual-time \{[\s\S]*?min-width:\s*0;[\s\S]*?overflow:\s*hidden;/);
+  assert.match(baseCss, /\.maintenance-submit \.modal-actions-row \{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) 88px;/);
+  assert.doesNotMatch(
+    responsiveCss,
+    /\.express-options-two,\s*\.quick-answer-grid,\s*\.outcome-options\s*\{\s*grid-template-columns:\s*1fr;/,
+  );
+  assert.equal((maintenanceHtml.match(/Quando chegaram\?/g) || []).length, 1);
 });
 
 test("rascunho da manutenção integra sessão, ocultação e fechamento da página", () => {
