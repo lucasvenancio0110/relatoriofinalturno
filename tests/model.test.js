@@ -6,6 +6,7 @@ import { CELL_ORDER, GENERAL_CELL, UNMAPPED_CELL } from "../src/js/config.js";
 
 import {
   addCompleted,
+  applyCategoryReview,
   categoriesOfTnl,
   commitDecision,
   kpis,
@@ -110,4 +111,18 @@ test("alterar somente a manutenção preserva as outras categorias da mesma TNL"
 
   assert.equal(categoriesOfTnl(state, 19).includes("maintenance"), false);
   assert.equal(categoriesOfTnl(state, 19).includes("setup"), true);
+});
+
+test("revisão de conflito conclui cada categoria sem liberar as demais", () => {
+  const { state } = parseReport({ raw: fullReport, nextShift: 3 });
+
+  assert.deepEqual(new Set(categoriesOfTnl(state, 19)), new Set(["maintenance", "setup"]));
+  assert.equal(applyCategoryReview(state, 19, "setup", true), true);
+  assert.deepEqual(categoriesOfTnl(state, 19), ["maintenance"]);
+  assert.equal(state.completed.setups.includes(19), true);
+  assert.equal(state.completed.maintenances.includes(19), false);
+
+  assert.equal(applyCategoryReview(state, 19, "maintenance", false), false);
+  assert.deepEqual(categoriesOfTnl(state, 19), ["maintenance"]);
+  assert.equal(state.completed.maintenances.includes(19), false);
 });
