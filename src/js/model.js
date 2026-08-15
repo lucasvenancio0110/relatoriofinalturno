@@ -171,6 +171,14 @@ export function removeCategory(state, tnl, category) {
   );
 }
 
+export function applyCategoryReview(state, tnl, category, concluded) {
+  removeCompleted(state, tnl, category);
+  if (!concluded) return false;
+  addCompleted(state, tnl, category);
+  removeCategory(state, tnl, category);
+  return true;
+}
+
 export function removeRecordsOfTnl(state, tnl) {
   state.records = state.records.filter((record) => Number(record.tnl) !== Number(tnl));
 }
