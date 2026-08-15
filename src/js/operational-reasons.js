@@ -9,6 +9,51 @@ const MAINTENANCE_RECORD_TYPES = new Set([
   "maintenance_monitoring",
 ]);
 
+// No bloco de AJUSTES do grupo, o texto ao lado da TNL muitas vezes é apenas
+// o preparador responsável. Isso é metadado, não o motivo técnico do ajuste.
+const ADJUSTMENT_PREPARER_NAMES = new Set(
+  [
+    "LUCAS",
+    "LUCAS V",
+    "LUCAS VENANCIO",
+    "NATTAN",
+    "CLAYTON",
+    "LUCIANO",
+    "MARLON",
+    "CHRISTOFFER",
+    "CHRISTOFER",
+    "MARCIO",
+    "JULIANO",
+    "EVERSON",
+    "EWERSON",
+    "WENDEL",
+    "ALAN",
+    "ADRIANO",
+    "GABRIEL",
+    "WILLIANS",
+  ].map((name) => normalizeHeader(name)),
+);
+
+function isAdjustmentPreparerLabel(value) {
+  let key = normalizeHeader(value);
+  if (!key) return false;
+  if (/^PREPARADOR(?:A)?\s+/.test(key)) return true;
+  key = key.replace(/^(?:RESPONSAVEL|PREP)\s+/, "").trim();
+  return ADJUSTMENT_PREPARER_NAMES.has(key);
+}
+
+export function adjustmentReasonWithoutPreparer(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  if (isAdjustmentPreparerLabel(text)) return "";
+
+  // Ex.: "MÁRCIO - ferramenta quebrando" => "ferramenta quebrando".
+  // Ex.: "ferramenta quebrando - MÁRCIO" => "ferramenta quebrando".
+  const parts = text.split(/\s*(?:[-–—|/]|•|:)\s*/).filter(Boolean);
+  if (parts.length <= 1) return text;
+  return parts.filter((part) => !isAdjustmentPreparerLabel(part)).join(" - ").trim();
+}
+
 const GENERIC_REASONS = Object.freeze({
   adjustment: new Set([
     "AJUSTE",
@@ -35,7 +80,9 @@ const GENERIC_REASONS = Object.freeze({
 });
 
 export function meaningfulOperationalReason(value, category) {
-  const text = String(value || "").trim();
+  let text = String(value || "").trim();
+  if (!text) return "";
+  if (category === "adjustment") text = adjustmentReasonWithoutPreparer(text);
   if (!text) return "";
   const key = normalizeHeader(text);
   return GENERIC_REASONS[category]?.has(key) ? "" : text;

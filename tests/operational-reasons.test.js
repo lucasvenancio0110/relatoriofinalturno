@@ -6,6 +6,7 @@ import {
   existingAdjustmentReason,
   existingMaintenanceReason,
   meaningfulOperationalReason,
+  adjustmentReasonWithoutPreparer,
 } from "../src/js/operational-reasons.js";
 import { ensureMaintenanceCase } from "../src/js/maintenance.js";
 
@@ -80,4 +81,37 @@ test("fluxo mantém perguntas explícitas de motivo", () => {
   assert.match(appSource, /Escreva o motivo do ajuste para o relatório/);
   assert.match(appSource, /Motivo da manutenção — TNL/);
   assert.match(appSource, /Escreva o motivo da manutenção para o relatório/);
+});
+
+
+test("nome do preparador não conta como motivo de ajuste", () => {
+  [
+    "Márcio",
+    "Wendel",
+    "Luciano",
+    "Nattan",
+    "Clayton",
+    "Christoffer",
+    "Marlon",
+    "Everson",
+    "Ewerson",
+    "Adriano",
+    "Gabriel",
+    "Willians",
+    "Alan",
+    "Lucas V",
+    "Preparador João",
+  ].forEach((name) => assert.equal(meaningfulOperationalReason(name, "adjustment"), ""));
+});
+
+test("nome do preparador é removido quando existe motivo técnico junto", () => {
+  assert.equal(adjustmentReasonWithoutPreparer("Márcio - Correção de medida"), "Correção de medida");
+  assert.equal(adjustmentReasonWithoutPreparer("Ferramenta quebrando - Wendel"), "Ferramenta quebrando");
+  assert.equal(meaningfulOperationalReason("Luciano / Ajuste no diâmetro", "adjustment"), "Ajuste no diâmetro");
+});
+
+test("registro de ajuste contendo somente preparador obriga novo motivo", () => {
+  const state = createEmptyState();
+  record(state, 60, "adjustment", "Márcio");
+  assert.equal(existingAdjustmentReason(state, 60), "");
 });
