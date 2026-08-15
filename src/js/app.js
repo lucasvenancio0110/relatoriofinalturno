@@ -737,6 +737,7 @@ function updateMaintenanceFormVisibility() {
   byId("maintenanceArrivedField").hidden = !(statusReady && originReady && tractianReady);
   byId("maintenanceActedOptions").hidden = released;
   byId("maintenanceArrivedTimeOptions").hidden = !(released || acted === "yes");
+  byId("maintenanceArrivedTimeQuestion").hidden = released;
   byId("maintenanceFinishedField").hidden = !(released && arrivalReady);
   byId("maintenanceSave").disabled = !(
     statusReady &&
@@ -747,7 +748,7 @@ function updateMaintenanceFormVisibility() {
     serviceStatus
   );
   byId("maintenanceArrivedLabel").textContent = released
-    ? "Que horas a manutenção chegou?"
+    ? "Quando a manutenção chegou?"
     : "A manutenção chegou a atuar?";
   byId("maintenanceFinishedLabel").textContent = "Que horas liberaram?";
   ["maintenanceTractianStatus", "maintenanceMachineOutcome"].forEach((id) =>
@@ -839,7 +840,7 @@ function persistMaintenanceDraft() {
   const saved = saveSession();
   if (saved) {
     byId("maintenanceAutosaveStatus").innerHTML =
-      '<span aria-hidden="true">●</span> Rascunho salvo automaticamente neste dispositivo';
+      '<span aria-hidden="true">●</span> Rascunho salvo neste dispositivo';
   }
   return saved;
 }
