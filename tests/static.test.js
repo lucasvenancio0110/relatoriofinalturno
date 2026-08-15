@@ -7,6 +7,7 @@ const root = resolve(import.meta.dirname, "..");
 const html = readFileSync(resolve(root, "index.html"), "utf8");
 const app = readFileSync(resolve(root, "src/js/app.js"), "utf8");
 const baseCss = readFileSync(resolve(root, "styles/base.css"), "utf8");
+const componentsCss = readFileSync(resolve(root, "styles/components.css"), "utf8");
 const responsiveCss = readFileSync(resolve(root, "styles/responsive.css"), "utf8");
 const responsiveDialogs = readFileSync(resolve(root, "src/js/responsive-dialogs.js"), "utf8");
 const buildScript = readFileSync(resolve(root, "scripts/build.mjs"), "utf8");
@@ -28,6 +29,18 @@ test("viewport permite zoom e diálogos possuem semântica nativa", () => {
   ["EM MANUTENÇÃO", "LIBERADA"].forEach(
     (option) => assert.ok(html.includes(option), `Resultado ausente: ${option}`),
   );
+});
+
+test("resumo das células usa cinco colunas fixas em todas as larguras", () => {
+  assert.match(
+    componentsCss,
+    /\.cell-overview\s*\{[\s\S]*?grid-template-columns:\s*repeat\(5,\s*minmax\(0,\s*1fr\)\);/,
+  );
+  assert.doesNotMatch(
+    responsiveCss,
+    /\.cell-overview\s*\{[^}]*grid-template-columns:/,
+  );
+  assert.match(componentsCss, /\.cell-chip\s*\{[\s\S]*?min-width:\s*0;/);
 });
 
 test("ronda rápida usa no máximo quatro blocos progressivos", () => {

@@ -50,17 +50,18 @@
 
 .cell-overview {
   display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   padding: 16px 18px;
 }
 
 .cell-chip {
+  min-width: 0;
   min-height: 58px;
   display: grid;
   place-content: center;
   gap: 1px;
-  padding: 8px;
+  padding: 7px 4px;
   border: 1px solid var(--line);
   border-radius: 11px;
   color: var(--text);
@@ -76,6 +77,8 @@
   color: var(--muted);
   font-size: 0.63rem;
   font-weight: 750;
+  line-height: 1.15;
+  text-wrap: balance;
 }
 
 .cell-chip.selected {

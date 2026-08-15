@@ -127,7 +127,7 @@ export function markLedger(state, key, status) {
 
 export function visibleCells(state) {
   const cells = [...CELL_ORDER];
-  if (state.roundLedger.some((item) => item.cell === GENERAL_CELL)) cells.unshift(GENERAL_CELL);
+  if (state.roundLedger.some((item) => item.cell === GENERAL_CELL)) cells.push(GENERAL_CELL);
   if (state.roundLedger.some((item) => item.cell === UNMAPPED_CELL)) cells.push(UNMAPPED_CELL);
   return cells;
 }

@@ -3,9 +3,6 @@
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .cell-overview {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
 }
 
 @media (max-width: 680px) {
@@ -70,8 +67,21 @@
   }
 
   .cell-overview {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    padding: 13px;
+    gap: 6px;
+    padding: 12px;
+  }
+
+  .cell-chip {
+    min-height: 60px;
+    border-radius: 10px;
+  }
+
+  .cell-chip span {
+    font-size: 0.72rem;
+  }
+
+  .cell-chip small {
+    font-size: 0.54rem;
   }
 
   .section-heading,
@@ -214,10 +224,6 @@
 }
 
 @media (max-width: 390px) {
-  .cell-overview {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .access-card {
     padding: 25px 18px;
   }
