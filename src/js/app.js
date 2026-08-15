@@ -29,6 +29,7 @@ import {
   activeRecords,
   addCompleted,
   addRecord,
+  applyCategoryReview,
   categoriesOfTnl,
   categoryLabel,
   commitDecision,
@@ -847,18 +848,11 @@ function persistMaintenanceDraft() {
     updatedAt: new Date().toISOString(),
   };
   activeMaintenanceDraftKey = key;
-  const saved = saveSession();
-  if (saved) {
-    byId("maintenanceAutosaveStatus").innerHTML =
-      '<span aria-hidden="true">●</span> Rascunho salvo neste dispositivo';
-  }
-  return saved;
+  return saveSession();
 }
 
 function queueMaintenanceDraftSave() {
   if (!byId("maintenanceDialog").open) return;
-  byId("maintenanceAutosaveStatus").innerHTML =
-    '<span class="saving" aria-hidden="true">●</span> Salvando rascunho…';
   clearTimeout(maintenanceAutosaveTimer);
   maintenanceAutosaveTimer = setTimeout(persistMaintenanceDraft, 120);
 }
@@ -959,19 +953,9 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   dialog.dataset.outcomeLocked = String(outcomeLocked);
   dialog.dataset.producing = String(Boolean(context.producing));
 
-  byId("maintenanceDialogTitle").textContent = `Manutenção — TNL ${padTnl(tnl)}`;
-  const received = item.originalLines.length
-    ? `<details><summary>Ver informação recebida</summary><p>${lineBreaks(item.originalLines.join("\n"))}</p></details>`
-    : "";
-  const completionSummary =
-    completionConfirmed === false
-      ? "<strong>Manutenção ainda não foi concluída.</strong><span>Registre somente a origem, a atuação e o chamado.</span>"
-      : completionConfirmed === true
-        ? "<strong>Manutenção confirmada como concluída.</strong><span>Registre a origem, os horários e o chamado.</span>"
-        : item.reportedCompleted
-          ? "<strong>Já veio marcada como concluída pelo preparador.</strong><span>Registre somente a origem, os horários e o chamado.</span>"
-          : "<strong>Quatro respostas rápidas.</strong><span>Somente o necessário para fechar a ronda.</span>";
-  byId("maintenanceSourceSummary").innerHTML = `${completionSummary}${item.reasons.length ? `<span>Motivo: ${escapeHtml(item.reasons.join(" + "))}</span>` : ""}${received}`;
+  byId("maintenanceDialogTitle").textContent = `TNL ${padTnl(tnl)} - Manutenção`;
+  byId("maintenanceSourceSummary").innerHTML =
+    `<strong>Motivo:</strong> ${escapeHtml(maintenanceReason(item, "Não informado"))}`;
 
   setMaintenanceChoice(
     "maintenanceMachineOutcome",
@@ -1342,15 +1326,7 @@ async function chooseAdjustment(
   });
 }
 
-async function finishMaintenanceDecision({
-  subjectKey,
-  tnl,
-  reason,
-  producing = false,
-  before = snapshotSubject(state, subjectKey),
-  beforeApply = () => {},
-  completionConfirmed,
-}) {
+function createMaintenanceDecision({ subjectKey, tnl, reason, producing, completionConfirmed }) {
   const existing = maintenanceCaseOf(state, tnl) || {};
   const seed = normalizeMaintenanceCase(
     {
@@ -1368,15 +1344,75 @@ async function finishMaintenanceDecision({
     },
     tnl,
   );
-  const context = {
+  return {
+    seed,
+    context: {
+      subjectKey,
+      tnl: Number(tnl),
+      reason,
+      producing,
+      completionConfirmed,
+    },
+  };
+}
+
+async function collectMaintenanceDecision(options) {
+  const decision = createMaintenanceDecision(options);
+  const tracking = await showMaintenanceForm(options.tnl, decision.seed, decision.context);
+  return tracking ? { ...decision, tracking } : null;
+}
+
+function applyMaintenanceTracking({
+  tnl,
+  reason,
+  producing,
+  seed,
+  tracking,
+  beforeApply = () => {},
+}) {
+  beforeApply();
+  ensureMaintenanceCase(state, {
+    tnl,
+    reason,
+    sourceSection: producing ? "maintenance_prod" : "maintenance",
+    originalLine: reason ? `TNL ${padTnl(tnl)} - ${reason}` : "",
+    reportedCompleted: seed.reportedCompleted,
+  });
+  const callOpenedShift =
+    tracking.callOrigin === "current"
+      ? Number(readFields().currentShift)
+      : tracking.callOrigin === "previous"
+        ? previousShift(readFields().currentShift)
+        : null;
+  updateMaintenanceCase(state, tnl, { ...tracking, callOpenedShift });
+  removeCategory(state, tnl, "maintenance");
+  removeCompleted(state, tnl, "maintenance");
+  if (["waiting", "working"].includes(tracking.serviceStatus)) {
+    setMaintenance(tnl, maintenanceReason(seed), false);
+  } else if (tracking.machineOutcome === "released") {
+    addCompleted(state, tnl, "maintenance");
+  }
+  return maintenanceCaseOf(state, tnl);
+}
+
+async function finishMaintenanceDecision({
+  subjectKey,
+  tnl,
+  reason,
+  producing = false,
+  before = snapshotSubject(state, subjectKey),
+  beforeApply = () => {},
+  completionConfirmed,
+}) {
+  const collected = await collectMaintenanceDecision({
     subjectKey,
-    tnl: Number(tnl),
+    tnl,
     reason,
     producing,
     completionConfirmed,
-  };
-  const tracking = await showMaintenanceForm(tnl, seed, context);
-  if (!tracking) return false;
+  });
+  if (!collected) return false;
+  const { context, seed, tracking } = collected;
 
   let finalCase = null;
   const applied = await applyTransition({
@@ -1385,29 +1421,14 @@ async function finishMaintenanceDecision({
     target: "maintenance",
     before,
     applyTarget: () => {
-      beforeApply();
-      ensureMaintenanceCase(state, {
+      finalCase = applyMaintenanceTracking({
         tnl,
         reason,
-        sourceSection: producing ? "maintenance_prod" : "maintenance",
-        originalLine: reason ? `TNL ${padTnl(tnl)} - ${reason}` : "",
-        reportedCompleted: seed.reportedCompleted,
+        producing,
+        seed,
+        tracking,
+        beforeApply,
       });
-      const callOpenedShift =
-        tracking.callOrigin === "current"
-          ? Number(readFields().currentShift)
-          : tracking.callOrigin === "previous"
-            ? previousShift(readFields().currentShift)
-            : null;
-      updateMaintenanceCase(state, tnl, { ...tracking, callOpenedShift });
-      removeCategory(state, tnl, "maintenance");
-      removeCompleted(state, tnl, "maintenance");
-      if (["waiting", "working"].includes(tracking.serviceStatus)) {
-        setMaintenance(tnl, maintenanceReason(seed), false);
-      } else if (tracking.machineOutcome === "released") {
-        addCompleted(state, tnl, "maintenance");
-      }
-      finalCase = maintenanceCaseOf(state, tnl);
       return finalCase;
     },
     action: `MANUTENÇÃO — ${MACHINE_OUTCOMES[tracking.machineOutcome]}`,
@@ -1486,6 +1507,103 @@ async function chooseMaintenance(
   });
 }
 
+const RELEASE_REVIEW_ORDER = ["setup", "maintenance", "adjustment"];
+
+function orderedReleaseCategories(tnl) {
+  const categories = categoriesOfTnl(state, tnl);
+  return [
+    ...RELEASE_REVIEW_ORDER.filter((category) => categories.includes(category)),
+    ...categories.filter((category) => !RELEASE_REVIEW_ORDER.includes(category)),
+  ];
+}
+
+async function reviewMachineRelease(subjectKey, tnl, before) {
+  const categories = orderedReleaseCategories(tnl);
+  if (!categories.length) {
+    commitAndRefresh({ subjectKey, tnl, kind: "machine", action: "LIBERADA", before });
+    return true;
+  }
+
+  const categoryAnswers = {};
+  let maintenanceDecision = null;
+  for (const category of categories) {
+    if (category === "maintenance") {
+      const producing = recordsOfTnl(state, tnl).some(
+        (record) => record.type === "maintenance_prod",
+      );
+      const initialReason =
+        (state.reasons.maintenance[String(tnl)] || []).join(" + ") ||
+        maintenanceReason(maintenanceCaseOf(state, tnl) || {}, "");
+      const reason = initialReason ||
+        (await askText({
+          title: `Motivo da manutenção — TNL ${padTnl(tnl)}`,
+          subtitle: "Informe o motivo da manutenção.",
+          initial: "",
+        }));
+      if (!reason) return false;
+      maintenanceDecision = await collectMaintenanceDecision({
+        subjectKey,
+        tnl,
+        reason,
+        producing,
+      });
+      if (!maintenanceDecision) return false;
+      maintenanceDecision.reason = reason;
+      maintenanceDecision.producing = producing;
+      continue;
+    }
+
+    const label = categoryLabel(category);
+    const answer = await showChoice({
+      title: `TNL ${padTnl(tnl)} - ${label}`,
+      subtitle: `O ${label.toLocaleLowerCase("pt-BR")} foi concluído?`,
+      actions: [
+        { value: "yes", label: "SIM, FOI CONCLUÍDO", tone: "success" },
+        {
+          value: "no",
+          label: `NÃO, CONTINUA EM ${label}`,
+          tone: category === "setup" ? "setup" : "warning",
+        },
+      ],
+    });
+    if (!answer) return false;
+    categoryAnswers[category] = answer === "yes";
+  }
+
+  const detailLines = [];
+  for (const category of categories) {
+    if (category === "maintenance") {
+      const finalCase = applyMaintenanceTracking({
+        tnl,
+        reason: maintenanceDecision.reason,
+        producing: maintenanceDecision.producing,
+        seed: maintenanceDecision.seed,
+        tracking: maintenanceDecision.tracking,
+      });
+      detailLines.push(maintenanceDecisionDetail(finalCase, readFields().currentShift));
+      clearMaintenanceDraft(maintenanceDraftKey(maintenanceDecision.context, tnl));
+      continue;
+    }
+    const concluded = categoryAnswers[category];
+    applyCategoryReview(state, tnl, category, concluded);
+    detailLines.push(`${categoryLabel(category)}: ${concluded ? "CONCLUÍDO" : "CONTINUA"}.`);
+  }
+
+  const remaining = orderedReleaseCategories(tnl);
+  const action = remaining.length
+    ? `REVISÃO CONCLUÍDA — ${remaining.map(categoryLabel).join(" + ")}`
+    : "LIBERADA";
+  commitAndRefresh({
+    subjectKey,
+    tnl,
+    kind: "machine",
+    action,
+    before,
+    detail: detailLines.join("\n"),
+  });
+  return true;
+}
+
 async function openMachine(tnl) {
   const subjectKey = `A:${Number(tnl)}`;
   const records = recordsOfTnl(state, tnl);
@@ -1513,9 +1631,7 @@ async function openMachine(tnl) {
     return chooseMaintenance(subjectKey, tnl, producing, before);
   }
   if (choice === "release") {
-    categoriesOfTnl(state, tnl).forEach((category) => addCompleted(state, tnl, category));
-    removeRecordsOfTnl(state, tnl);
-    commitAndRefresh({ subjectKey, tnl, kind: "machine", action: "LIBERADA", before });
+    return reviewMachineRelease(subjectKey, tnl, before);
   }
   if (choice === "remove") {
     removeRecordsOfTnl(state, tnl);

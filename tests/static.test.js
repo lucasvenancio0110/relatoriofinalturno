@@ -55,7 +55,12 @@ test("ronda rápida usa no máximo quatro blocos progressivos", () => {
   assert.match(maintenanceHtml, /Que horas liberaram/);
   assert.match(html, /data-time-mode="manual"/);
   assert.match(html, /data-time-mode="unknown"/);
-  assert.match(html, /Rascunho salvo neste dispositivo/i);
+  assert.match(maintenanceHtml, /TNL 000 - Manutenção/);
+  assert.match(maintenanceHtml, /class="maintenance-reason"[^>]*><strong>Motivo:<\/strong>/);
+  assert.doesNotMatch(
+    maintenanceHtml,
+    /SALVAMENTO AUTOMÁTICO|Rascunho salvo|Salvando rascunho|Quatro respostas rápidas|Ver informação recebida/i,
+  );
   assert.match(html, /id="maintenanceOutcomeStep"/);
   assert.equal((maintenanceHtml.match(/class="maintenance-step/g) || []).length, 4);
   assert.doesNotMatch(maintenanceHtml, /Quem abriu o chamado|Detalhes da atuação|EM ACOMPANHAMENTO|PASSOU PARA AJUSTE|PASSOU PARA SETUP/i);
@@ -69,6 +74,8 @@ test("formulário de manutenção permanece compacto e sem estouro no celular", 
   assert.match(maintenanceHtml, /class="time-mode-options quick-answer-grid release-time-options"/);
   assert.match(baseCss, /\.manual-time \{[\s\S]*?min-width:\s*0;[\s\S]*?overflow:\s*hidden;/);
   assert.match(baseCss, /\.maintenance-submit \.modal-actions-row \{[\s\S]*?grid-template-columns:\s*minmax\(0, 1fr\) 88px;/);
+  assert.match(responsiveCss, /#maintenanceDialog\s*\{[\s\S]*?88dvh/);
+  assert.match(responsiveCss, /#maintenanceDialog\s*\{[\s\S]*?env\(safe-area-inset-bottom\)/);
   assert.doesNotMatch(
     standardPhoneCss,
     /\.express-options-two,\s*\.quick-answer-grid,\s*\.outcome-options\s*\{\s*grid-template-columns:\s*1fr;/,
@@ -112,14 +119,31 @@ test("toda máquina preserva as cinco decisões do passagemdeturno", () => {
 });
 
 test("manutenção usa o formulário rápido sem apagar setup ou ajuste em bloco", () => {
+  const collect = app.match(/async function collectMaintenanceDecision[\s\S]*?\n}\n\nfunction applyMaintenanceTracking/)?.[0] || "";
+  const applyTracking = app.match(/function applyMaintenanceTracking[\s\S]*?\n}\n\nasync function finishMaintenanceDecision/)?.[0] || "";
   const finish = app.match(/async function finishMaintenanceDecision[\s\S]*?\n}\n\nasync function resumePendingMaintenanceDraft/)?.[0] || "";
-  assert.match(finish, /const tracking = await showMaintenanceForm/);
-  assert.match(finish, /if \(!tracking\) return false/);
+  assert.match(collect, /const tracking = await showMaintenanceForm/);
+  assert.match(finish, /collectMaintenanceDecision/);
+  assert.match(finish, /if \(!collected\) return false/);
   assert.match(finish, /target: "maintenance"/);
-  assert.match(finish, /updateMaintenanceCase/);
-  assert.match(finish, /removeCategory\(state, tnl, "maintenance"\)/);
+  assert.match(applyTracking, /updateMaintenanceCase/);
+  assert.match(applyTracking, /removeCategory\(state, tnl, "maintenance"\)/);
   assert.doesNotMatch(finish, /removeRecordsOfTnl|applyMachineRoute/);
-  assert.ok(finish.indexOf("showMaintenanceForm") < finish.indexOf("applyTransition"));
+  assert.ok(finish.indexOf("collectMaintenanceDecision") < finish.indexOf("applyTransition"));
+});
+
+test("LIBERADA revisa conflitos categoria por categoria", () => {
+  const review = app.match(/async function reviewMachineRelease[\s\S]*?\n}\n\nasync function openMachine/)?.[0] || "";
+  const flow = app.match(/async function openMachine[\s\S]*?\n}\n\nasync function openFuture/)?.[0] || "";
+  const releaseBranch = flow.match(/if \(choice === "release"\) \{[\s\S]*?\n  \}/)?.[0] || "";
+  assert.match(app, /const RELEASE_REVIEW_ORDER = \["setup", "maintenance", "adjustment"\]/);
+  assert.match(review, /collectMaintenanceDecision/);
+  assert.match(review, /applyMaintenanceTracking/);
+  assert.match(review, /applyCategoryReview/);
+  assert.match(review, /O \$\{label\.toLocaleLowerCase\("pt-BR"\)\} foi concluído\?/);
+  assert.match(flow, /return reviewMachineRelease\(subjectKey, tnl, before\)/);
+  assert.doesNotMatch(flow, /categoriesOfTnl\(state, tnl\)\.forEach/);
+  assert.doesNotMatch(releaseBranch, /removeRecordsOfTnl|addCompleted/);
 });
 
 test("setup futuro mantém a decisão em duas etapas e resolve conflitos", () => {
@@ -136,8 +160,8 @@ test("setup futuro mantém a decisão em duas etapas e resolve conflitos", () =>
 });
 
 test("motivos importados são reaproveitados sem nova digitação", () => {
-  const adjustment = app.match(/async function chooseAdjustment[\s\S]*?\n}\n\nasync function finishMaintenanceDecision/)?.[0] || "";
-  const maintenance = app.match(/async function chooseMaintenance[\s\S]*?\n}\n\nasync function openMachine/)?.[0] || "";
+  const adjustment = app.match(/async function chooseAdjustment[\s\S]*?\n}\n\nfunction createMaintenanceDecision/)?.[0] || "";
+  const maintenance = app.match(/async function chooseMaintenance[\s\S]*?\n}\n\nconst RELEASE_REVIEW_ORDER/)?.[0] || "";
   assert.match(adjustment, /savedReason \|\|/);
   assert.match(maintenance, /initial \|\|/);
 });
