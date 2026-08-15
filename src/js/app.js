@@ -1445,6 +1445,17 @@ async function resumePendingMaintenanceDraft() {
   const context = draft?.context;
   const tnl = Number(draft?.tnl || context?.tnl || 0);
   if (!draft || !context || !tnl) return;
+  const savedCase = maintenanceCaseOf(state, tnl);
+  const draftUpdatedAt = Date.parse(draft.updatedAt || "");
+  const caseUpdatedAt = Date.parse(savedCase?.updatedAt || "");
+  if (
+    savedCase?.reviewed &&
+    Number.isFinite(caseUpdatedAt) &&
+    (!Number.isFinite(draftUpdatedAt) || draftUpdatedAt <= caseUpdatedAt)
+  ) {
+    clearMaintenanceDraft(activeMaintenanceDraftKey);
+    return;
+  }
   maintenanceResumeStarted = true;
   selectedCell = cellForTnl(tnl);
   switchTab("ronda", { save: false });
