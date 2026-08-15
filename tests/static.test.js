@@ -19,9 +19,11 @@ test("HTML usa módulos e não contém senha em texto aberto", () => {
   assert.doesNotMatch(html, /onclick\s*=/i);
 });
 
-test("viewport permite zoom e diálogos possuem semântica nativa", () => {
-  assert.doesNotMatch(html, /user-scalable\s*=\s*no/i);
-  assert.doesNotMatch(html, /maximum-scale\s*=\s*1/i);
+test("viewport bloqueia zoom e diálogos possuem semântica nativa", () => {
+  assert.match(html, /user-scalable=no/i);
+  assert.match(html, /maximum-scale=1/i);
+  assert.match(html, /minimum-scale=1/i);
+  assert.match(baseCss, /touch-action:\s*pan-x pan-y;/i);
   assert.ok((html.match(/<dialog\b/g) || []).length >= 4);
   assert.match(html, /id="maintenanceCallOrigin"/);
   assert.match(html, /id="maintenanceServiceStatus"/);
