@@ -1,0 +1,512 @@
+from pathlib import Path
+import re
+
+index_path = Path("index.html")
+index = index_path.read_text(encoding="utf-8")
+
+new_html = '''          <div class="details-body closing-layout">
+            <div class="shift-card-group" aria-label="Turnos da passagem">
+              <section class="closing-card shift-card">
+                <span class="closing-card-label">Turno atual</span>
+                <select id="currentShift" class="sr-only" aria-label="Turno atual">
+                  <option value="1">1° TURNO</option>
+                  <option value="2" selected>2° TURNO</option>
+                  <option value="3">3° TURNO</option>
+                </select>
+                <div class="shift-segment" data-shift-picker="currentShift" role="group" aria-label="Selecionar turno atual">
+                  <button class="shift-option" type="button" data-shift-value="1" aria-pressed="false"><strong>1°</strong><small>TURNO</small></button>
+                  <button class="shift-option" type="button" data-shift-value="2" aria-pressed="true"><strong>2°</strong><small>TURNO</small></button>
+                  <button class="shift-option" type="button" data-shift-value="3" aria-pressed="false"><strong>3°</strong><small>TURNO</small></button>
+                </div>
+              </section>
+              <section class="closing-card shift-card">
+                <span class="closing-card-label">Próximo turno</span>
+                <select id="nextShift" class="sr-only" aria-label="Próximo turno">
+                  <option value="1">1° TURNO</option>
+                  <option value="2">2° TURNO</option>
+                  <option value="3" selected>3° TURNO</option>
+                </select>
+                <div class="shift-segment" data-shift-picker="nextShift" role="group" aria-label="Selecionar próximo turno">
+                  <button class="shift-option" type="button" data-shift-value="1" aria-pressed="false"><strong>1°</strong><small>TURNO</small></button>
+                  <button class="shift-option" type="button" data-shift-value="2" aria-pressed="false"><strong>2°</strong><small>TURNO</small></button>
+                  <button class="shift-option" type="button" data-shift-value="3" aria-pressed="true"><strong>3°</strong><small>TURNO</small></button>
+                </div>
+              </section>
+            </div>
+
+            <div class="counter-grid" aria-label="Quantidades do fechamento">
+              <section class="closing-card counter-card" data-counter-card="checkpoint">
+                <span class="closing-card-label">Bancada</span>
+                <input id="checkpoint" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="checkpoint" aria-label="Diminuir Bancada">−</button>
+                  <output class="counter-value" data-counter-value="checkpoint" for="checkpoint">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="checkpoint" aria-label="Aumentar Bancada">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="cqFechamento">
+                <span class="closing-card-label">CQ Fechamento</span>
+                <input id="cqFechamento" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="cqFechamento" aria-label="Diminuir CQ Fechamento">−</button>
+                  <output class="counter-value" data-counter-value="cqFechamento" for="cqFechamento">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="cqFechamento" aria-label="Aumentar CQ Fechamento">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="cqReinspecao">
+                <span class="closing-card-label">CQ Reinspeção</span>
+                <input id="cqReinspecao" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="cqReinspecao" aria-label="Diminuir CQ Reinspeção">−</button>
+                  <output class="counter-value" data-counter-value="cqReinspecao" for="cqReinspecao">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="cqReinspecao" aria-label="Aumentar CQ Reinspeção">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="sel1">
+                <span class="closing-card-label">Seleção 1°T</span>
+                <input id="sel1" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="sel1" aria-label="Diminuir Seleção 1° turno">−</button>
+                  <output class="counter-value" data-counter-value="sel1" for="sel1">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="sel1" aria-label="Aumentar Seleção 1° turno">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="sel2">
+                <span class="closing-card-label">Seleção 2°T</span>
+                <input id="sel2" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="sel2" aria-label="Diminuir Seleção 2° turno">−</button>
+                  <output class="counter-value" data-counter-value="sel2" for="sel2">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="sel2" aria-label="Aumentar Seleção 2° turno">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="sel3">
+                <span class="closing-card-label">Seleção 3°T</span>
+                <input id="sel3" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="sel3" aria-label="Diminuir Seleção 3° turno">−</button>
+                  <output class="counter-value" data-counter-value="sel3" for="sel3">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="sel3" aria-label="Aumentar Seleção 3° turno">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="selAll">
+                <span class="closing-card-label">Os 3 turnos</span>
+                <input id="selAll" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="selAll" aria-label="Diminuir Os 3 turnos">−</button>
+                  <output class="counter-value" data-counter-value="selAll" for="selAll">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="selAll" aria-label="Aumentar Os 3 turnos">+</button>
+                </div>
+              </section>
+              <section class="closing-card counter-card" data-counter-card="selTnc">
+                <span class="closing-card-label">Seleção TNC</span>
+                <input id="selTnc" type="hidden" value="00" />
+                <div class="counter-stepper">
+                  <button class="counter-btn counter-minus" type="button" data-counter-action="decrement" data-counter-target="selTnc" aria-label="Diminuir Seleção TNC">−</button>
+                  <output class="counter-value" data-counter-value="selTnc" for="selTnc">00</output>
+                  <button class="counter-btn counter-plus" type="button" data-counter-action="increment" data-counter-target="selTnc" aria-label="Aumentar Seleção TNC">+</button>
+                </div>
+              </section>
+            </div>
+          </div>'''
+
+if 'class="details-body closing-layout"' not in index:
+    pattern = re.compile(r'          <div class="details-body form-grid">.*?          </div>\n        </details>', re.S)
+    match = pattern.search(index)
+    if not match:
+        raise SystemExit("Bloco antigo de Dados do fechamento não encontrado.")
+    index = index[:match.start()] + new_html + "\n        </details>" + index[match.end():]
+    index_path.write_text(index, encoding="utf-8")
+
+app_path = Path("src/js/app.js")
+app = app_path.read_text(encoding="utf-8")
+
+old_apply = '''function applyFields(fields = {}) {
+  FIELD_IDS.forEach((id) => {
+    byId(id).value = fields[id] ?? DEFAULT_FIELDS[id] ?? "";
+  });
+  enforceShiftPair("current");
+}'''
+new_apply = '''function applyFields(fields = {}) {
+  FIELD_IDS.forEach((id) => {
+    byId(id).value = fields[id] ?? DEFAULT_FIELDS[id] ?? "";
+  });
+  enforceShiftPair("current");
+  renderShiftControls();
+  renderCounterControls();
+}'''
+if "renderCounterControls();" not in app.split("function applyFields", 1)[1].split("}", 1)[0]:
+    if old_apply not in app:
+        raise SystemExit("applyFields antigo não encontrado.")
+    app = app.replace(old_apply, new_apply, 1)
+
+old_shift = '''function enforceShiftPair(changed) {
+  const current = byId("currentShift");
+  const next = byId("nextShift");
+  if (changed === "next" && Number(next.value) === Number(current.value)) {
+    next.value = String(validNextShift(current.value, ""));
+    toast("O próximo turno deve ser diferente do turno atual");
+    return;
+  }
+  next.value = String(validNextShift(current.value, next.value));
+}
+
+function switchTab'''
+new_shift = '''function enforceShiftPair(changed) {
+  const current = byId("currentShift");
+  const next = byId("nextShift");
+  if (changed === "next" && Number(next.value) === Number(current.value)) {
+    next.value = String(validNextShift(current.value, ""));
+    toast("O próximo turno deve ser diferente do turno atual");
+    return;
+  }
+  next.value = String(validNextShift(current.value, next.value));
+}
+
+const CLOSING_COUNTER_IDS = [
+  "checkpoint",
+  "cqFechamento",
+  "cqReinspecao",
+  "sel1",
+  "sel2",
+  "sel3",
+  "selAll",
+  "selTnc",
+];
+
+function normalizeClosingCounter(value) {
+  const parsed = Number.parseInt(String(value ?? "").replace(/\\D/g, ""), 10);
+  const safe = Number.isFinite(parsed) ? Math.min(999, Math.max(0, parsed)) : 0;
+  return String(safe).padStart(2, "0");
+}
+
+function renderCounterControls() {
+  CLOSING_COUNTER_IDS.forEach((id) => {
+    const input = byId(id);
+    const output = document.querySelector(`[data-counter-value="${id}"]`);
+    if (!input || !output) return;
+    input.value = normalizeClosingCounter(input.value);
+    output.textContent = input.value;
+    const value = Number(input.value);
+    const card = document.querySelector(`[data-counter-card="${id}"]`);
+    card?.classList.toggle("has-value", value > 0);
+    const minus = document.querySelector(`[data-counter-action="decrement"][data-counter-target="${id}"]`);
+    if (minus) minus.disabled = value <= 0;
+  });
+}
+
+function adjustClosingCounter(id, delta) {
+  if (!CLOSING_COUNTER_IDS.includes(id)) return;
+  const input = byId(id);
+  const current = Number.parseInt(input.value, 10) || 0;
+  input.value = normalizeClosingCounter(current + delta);
+  renderCounterControls();
+  renderReport();
+  saveSession();
+}
+
+function renderShiftControls() {
+  const current = String(byId("currentShift")?.value || "");
+  document.querySelectorAll("[data-shift-picker]").forEach((picker) => {
+    const fieldId = picker.dataset.shiftPicker;
+    const selectedValue = String(byId(fieldId)?.value || "");
+    picker.querySelectorAll("[data-shift-value]").forEach((button) => {
+      const selected = button.dataset.shiftValue === selectedValue;
+      const unavailable = fieldId === "nextShift" && button.dataset.shiftValue === current;
+      button.classList.toggle("selected", selected);
+      button.setAttribute("aria-pressed", selected ? "true" : "false");
+      button.disabled = unavailable;
+    });
+  });
+}
+
+function selectClosingShift(fieldId, value) {
+  if (!["currentShift", "nextShift"].includes(fieldId)) return;
+  const field = byId(fieldId);
+  if (!field) return;
+  field.value = String(value);
+  enforceShiftPair(fieldId === "currentShift" ? "current" : "next");
+  renderShiftControls();
+  renderReport();
+  saveSession();
+}
+
+function switchTab'''
+if "const CLOSING_COUNTER_IDS = [" not in app:
+    if old_shift not in app:
+        raise SystemExit("Ponto de inserção dos controles não encontrado.")
+    app = app.replace(old_shift, new_shift, 1)
+
+old_events = '''  byId("currentShift").addEventListener("change", () => {
+    enforceShiftPair("current");
+    renderReport();
+    saveSession();
+  });
+  byId("nextShift").addEventListener("change", () => {
+    enforceShiftPair("next");
+    renderReport();
+    saveSession();
+  });
+  ["checkpoint", "cqFechamento", "cqReinspecao", "sel1", "sel2", "sel3", "selAll", "selTnc"].forEach(
+    (id) => byId(id).addEventListener("input", () => {
+      renderReport();
+      saveSession();
+    }),
+  );'''
+new_events = '''  document.querySelectorAll("[data-shift-picker]").forEach((picker) =>
+    picker.addEventListener("click", (event) => {
+      const button = event.target.closest("[data-shift-value]");
+      if (!button || button.disabled) return;
+      selectClosingShift(picker.dataset.shiftPicker, button.dataset.shiftValue);
+    }),
+  );
+  document.querySelector(".counter-grid")?.addEventListener("click", (event) => {
+    const button = event.target.closest("[data-counter-action][data-counter-target]");
+    if (!button) return;
+    adjustClosingCounter(
+      button.dataset.counterTarget,
+      button.dataset.counterAction === "increment" ? 1 : -1,
+    );
+  });
+  byId("currentShift").addEventListener("change", () => {
+    enforceShiftPair("current");
+    renderShiftControls();
+    renderReport();
+    saveSession();
+  });
+  byId("nextShift").addEventListener("change", () => {
+    enforceShiftPair("next");
+    renderShiftControls();
+    renderReport();
+    saveSession();
+  });'''
+if 'document.querySelector(".counter-grid")?.addEventListener' not in app:
+    if old_events not in app:
+        raise SystemExit("Bloco antigo de eventos do fechamento não encontrado.")
+    app = app.replace(old_events, new_events, 1)
+
+app_path.write_text(app, encoding="utf-8")
+
+css_path = Path("styles/components.css")
+css = css_path.read_text(encoding="utf-8")
+marker = "/* closing-controls-v1 */"
+css_block = r'''
+
+/* closing-controls-v1 */
+.closing-layout {
+  display: grid;
+  gap: 13px;
+}
+
+.shift-card-group {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.closing-card {
+  min-width: 0;
+  padding: 13px;
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  background: color-mix(in srgb, var(--surface-strong) 82%, transparent);
+  transition: border-color 0.16s ease, background 0.16s ease, transform 0.16s ease;
+}
+
+.closing-card-label {
+  display: block;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+}
+
+.shift-segment {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.shift-option {
+  min-width: 0;
+  min-height: 50px;
+  display: grid;
+  place-items: center;
+  align-content: center;
+  gap: 1px;
+  padding: 4px 2px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--surface-soft) 90%, transparent);
+  transition: transform 0.14s ease, border-color 0.14s ease, background 0.14s ease;
+}
+
+.shift-option strong {
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.shift-option small {
+  font-size: 0.52rem;
+  font-weight: 900;
+  letter-spacing: 0.06em;
+}
+
+.shift-option.selected {
+  border-color: color-mix(in srgb, var(--accent) 74%, white 8%);
+  color: #fff;
+  background: linear-gradient(145deg, var(--accent), var(--accent-strong));
+  box-shadow: 0 7px 18px rgba(42, 161, 152, 0.2);
+}
+
+.shift-option:active:not(:disabled),
+.counter-btn:active:not(:disabled) {
+  transform: scale(0.94);
+}
+
+.shift-option:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.counter-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.counter-card {
+  min-height: 104px;
+  display: grid;
+  align-content: space-between;
+}
+
+.counter-card.has-value {
+  border-color: color-mix(in srgb, var(--accent) 38%, var(--line));
+  background: color-mix(in srgb, var(--accent) 8%, var(--surface-strong));
+}
+
+.counter-stepper {
+  display: grid;
+  grid-template-columns: 40px minmax(40px, 1fr) 40px;
+  align-items: center;
+  gap: 5px;
+  margin-top: 11px;
+}
+
+.counter-btn {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  color: var(--text);
+  background: var(--surface-soft);
+  font-size: 1.35rem;
+  font-weight: 850;
+  line-height: 1;
+  transition: transform 0.14s ease, filter 0.14s ease, opacity 0.14s ease;
+}
+
+.counter-plus {
+  border-color: color-mix(in srgb, var(--accent) 54%, var(--line));
+  color: #fff;
+  background: color-mix(in srgb, var(--accent) 76%, var(--surface-strong));
+}
+
+.counter-btn:disabled {
+  opacity: 0.28;
+  cursor: not-allowed;
+}
+
+.counter-value {
+  min-width: 0;
+  color: var(--text);
+  text-align: center;
+  font-size: 1.28rem;
+  font-weight: 900;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+@media (max-width: 680px) {
+  .details-body.closing-layout {
+    padding: 0 12px 14px;
+  }
+
+  .shift-card-group {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .closing-card {
+    padding: 11px;
+    border-radius: 14px;
+  }
+
+  .shift-card {
+    padding-bottom: 10px;
+  }
+
+  .shift-segment {
+    margin-top: 8px;
+  }
+
+  .shift-option {
+    min-height: 44px;
+  }
+
+  .counter-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .counter-card {
+    min-height: 96px;
+  }
+
+  .counter-stepper {
+    grid-template-columns: 36px minmax(36px, 1fr) 36px;
+    gap: 3px;
+    margin-top: 8px;
+  }
+
+  .counter-btn {
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    font-size: 1.2rem;
+  }
+
+  .counter-value {
+    font-size: 1.16rem;
+  }
+
+  .closing-card-label {
+    font-size: 0.7rem;
+  }
+}
+'''
+if marker not in css:
+    css_path.write_text(css.rstrip() + css_block + "\n", encoding="utf-8")
+
+html = index_path.read_text(encoding="utf-8")
+js = app_path.read_text(encoding="utf-8")
+css = css_path.read_text(encoding="utf-8")
+for token in [
+    'data-shift-picker="currentShift"',
+    'data-shift-picker="nextShift"',
+    'data-counter-target="checkpoint"',
+    'data-counter-target="selTnc"',
+]:
+    if token not in html:
+        raise SystemExit(f"HTML incompleto: {token}")
+for token in ["renderShiftControls", "adjustClosingCounter", "CLOSING_COUNTER_IDS"]:
+    if token not in js:
+        raise SystemExit(f"JS incompleto: {token}")
+if marker not in css:
+    raise SystemExit("CSS dos controles não foi aplicado.")
+print("Controles compactos do fechamento aplicados.")
