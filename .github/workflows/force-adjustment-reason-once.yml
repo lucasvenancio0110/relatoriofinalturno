@@ -1,0 +1,83 @@
+name: Force adjustment reason once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/force-adjustment-reason-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Aplicar regra de motivo
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          app = Path("src/js/app.js")
+          text = app.read_text(encoding="utf-8")
+
+          old_ensure = '''async function ensureExistingCategoryReason(tnl, category) {\n  const existing = category === "adjustment"\n    ? existingAdjustmentReason(state, tnl)\n    : existingMaintenanceReason(state, tnl);\n  if (existing) return existing;\n  const label = category === "adjustment" ? "ajuste" : "manutenção";\n  const reason = await askText({\n    title: `Motivo do ${label} — TNL ${padTnl(tnl)}`,\n    subtitle: `Escreva o motivo do ${label} para o relatório.`,\n    initial: "",\n  });\n  if (!reason) return "";\n  saveMissingCategoryReason(tnl, category, reason);\n  return reason;\n}\n'''
+          new_ensure = '''async function ensureExistingCategoryReason(tnl, category) {\n  // AJUSTE: sempre exige confirmação explícita do motivo na ronda, mesmo que\n  // exista texto antigo ao lado da máquina. MANUTENÇÃO reutiliza motivo real\n  // já existente e pergunta somente quando estiver sem motivo.\n  const existing = category === "maintenance" ? existingMaintenanceReason(state, tnl) : "";\n  if (category === "maintenance" && existing) return existing;\n  const label = category === "adjustment" ? "ajuste" : "manutenção";\n  const reason = await askText({\n    title: `Motivo do ${label} — TNL ${padTnl(tnl)}`,\n    subtitle: `Escreva o motivo do ${label} para o relatório.`,\n    initial: "",\n  });\n  if (!reason) return "";\n  saveMissingCategoryReason(tnl, category, reason);\n  return reason;\n}\n'''
+          if old_ensure not in text:
+              raise SystemExit("Bloco ensureExistingCategoryReason não encontrado")
+          text = text.replace(old_ensure, new_ensure, 1)
+
+          old_choose = '''async function chooseAdjustment(\n  subjectKey,\n  tnl,\n  before = snapshotSubject(state, subjectKey),\n  beforeApply = () => {},\n) {\n  const savedReason = existingAdjustmentReason(state, tnl);\n  const reason = savedReason ||\n    (await askText({\n      title: `Motivo do ajuste — TNL ${padTnl(tnl)}`,\n      subtitle: "Escreva o motivo do ajuste para o relatório.",\n      initial: "",\n    }));\n  if (!reason) return;\n  await applyTransition({\n'''
+          new_choose = '''async function chooseAdjustment(\n  subjectKey,\n  tnl,\n  before = snapshotSubject(state, subjectKey),\n  beforeApply = () => {},\n) {\n  // Toda decisão de passar em AJUSTE pergunta o motivo novamente.\n  // Não reutilizamos automaticamente nome de preparador nem motivo anterior.\n  const reason = await askText({\n    title: `Motivo do ajuste — TNL ${padTnl(tnl)}`,\n    subtitle: "Escreva o motivo do ajuste para o relatório.",\n    initial: "",\n  });\n  if (!reason) return;\n  await applyTransition({\n'''
+          if old_choose not in text:
+              raise SystemExit("Bloco chooseAdjustment não encontrado")
+          text = text.replace(old_choose, new_choose, 1)
+          app.write_text(text, encoding="utf-8")
+
+          tests = Path("tests/operational-reasons.test.js")
+          t = tests.read_text(encoding="utf-8")
+          old_test = '''test("ronda conecta a regra de motivo a todas as transições críticas", () => {\n  assert.match(appSource, /const savedReason = existingAdjustmentReason\\(state, tnl\\)/);\n  assert.match(appSource, /const initial = providedReason \\|\\| existingMaintenanceReason\\(state, tnl\\)/);\n  assert.match(appSource, /const initialReason = existingMaintenanceReason\\(state, tnl\\)/);\n  assert.match(appSource, /category === "adjustment" && answer === "no"/);\n  assert.match(appSource, /keepsCategory && \\["adjustment", "maintenance"\\]\\.includes\\(category\\)/);\n});\n'''
+          new_test = '''test("ronda conecta a regra de motivo a todas as transições críticas", () => {\n  assert.doesNotMatch(appSource, /const savedReason = existingAdjustmentReason\\(state, tnl\\)/);\n  assert.match(appSource, /Toda decisão de passar em AJUSTE pergunta o motivo novamente/);\n  assert.match(appSource, /const existing = category === "maintenance" \\? existingMaintenanceReason\\(state, tnl\\) : ""/);\n  assert.match(appSource, /const initial = providedReason \\|\\| existingMaintenanceReason\\(state, tnl\\)/);\n  assert.match(appSource, /const initialReason = existingMaintenanceReason\\(state, tnl\\)/);\n  assert.match(appSource, /category === "adjustment" && answer === "no"/);\n  assert.match(appSource, /keepsCategory && \\["adjustment", "maintenance"\\]\\.includes\\(category\\)/);\n});\n'''
+          if old_test not in t:
+              raise SystemExit("Teste de integração não encontrado")
+          t = t.replace(old_test, new_test, 1)
+
+          if 'ajuste sempre pergunta motivo e manutenção só pergunta quando não existe motivo' not in t:
+              t += '''\n\ntest("ajuste sempre pergunta motivo e manutenção só pergunta quando não existe motivo", () => {\n  const chooseStart = appSource.indexOf("async function chooseAdjustment(");\n  const chooseEnd = appSource.indexOf("function createMaintenanceDecision", chooseStart);\n  const chooseBlock = appSource.slice(chooseStart, chooseEnd);\n  assert.match(chooseBlock, /const reason = await askText\\(/);\n  assert.doesNotMatch(chooseBlock, /existingAdjustmentReason\\(state, tnl\\)/);\n\n  const ensureStart = appSource.indexOf("async function ensureExistingCategoryReason");\n  const ensureEnd = appSource.indexOf("async function applyTransition", ensureStart);\n  const ensureBlock = appSource.slice(ensureStart, ensureEnd);\n  assert.match(ensureBlock, /category === "maintenance" \\? existingMaintenanceReason\\(state, tnl\\) : ""/);\n  assert.match(ensureBlock, /category === "maintenance" && existing/);\n});\n'''
+          tests.write_text(t, encoding="utf-8")
+
+          # Força o Safari a baixar o bundle desta regra nova.
+          index = Path("index.html")
+          html = index.read_text(encoding="utf-8")
+          html = re.sub(r'1\\.8\\.3-20260815-1332', '1.8.4-20260815-1336', html)
+          index.write_text(html, encoding="utf-8")
+          PY
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci --ignore-scripts
+
+      - name: Validar aplicação
+        run: npm run validate
+
+      - name: Commitar correção e remover workflow temporário
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/force-adjustment-reason-once.yml
+          git add -A
+          git commit -m "fix: always require adjustment reason"
+          git push
