@@ -59,8 +59,11 @@ test("relatório mantém listas compactas e separa o detalhamento por máquina",
   updateMaintenanceCase(state, 25, {
     callOrigin: "current",
     callOpenedAt: "16:10",
+    tractianCode: "6661",
     serviceStatus: "completed",
+    arrivedShift: 2,
     arrivedAt: "17:05",
+    finishedShift: 2,
     finishedAt: "17:40",
     machineOutcome: "monitoring",
     monitoringDetails: "Acompanhar medida",
@@ -70,7 +73,9 @@ test("relatório mantém listas compactas e separa o detalhamento por máquina",
   updateMaintenanceCase(state, 19, {
     callOrigin: "previous",
     serviceStatus: "completed",
+    arrivedShift: 1,
     arrivedAt: "15:10",
+    finishedShift: 1,
     finishedAt: "15:45",
     machineOutcome: "released",
   });
@@ -99,10 +104,12 @@ test("relatório mantém listas compactas e separa o detalhamento por máquina",
   assert.doesNotMatch(completedBlock, /Manutenção atuou|Como ficou/);
 
   assert.match(trackingBlock, /\*TNL 019 - QUEBRA DE BEDAME\*/);
-  assert.match(trackingBlock, /Manutenção atuou de 15:10 até 15:45/);
+  assert.match(trackingBlock, /Início da atuação: 1º turno às 15:10/);
+  assert.match(trackingBlock, /Término da atuação: 1º turno às 15:45/);
   assert.match(trackingBlock, /Como ficou: LIBERADA/);
   assert.match(trackingBlock, /\n\n\*TNL 025 - AGUARDANDO TÉCNICO\*/);
   assert.match(trackingBlock, /Chamado aberto pelo 2º turno às 16:10/);
+  assert.match(trackingBlock, /Tractian #6661/);
   assert.match(trackingBlock, /Acompanhar: Acompanhar medida/);
   assert.match(trackingBlock, /\*TNL 048 - FALHA DE SENSOR\*/);
   assert.match(trackingBlock, /Chamado aberto pelo 1º turno/);
@@ -118,8 +125,11 @@ test("relatório gerado pode ser importado no turno seguinte sem perder a linha 
     callOrigin: "current",
     callOpenedShift: 2,
     callOpenedAt: "16:10",
+    tractianCode: "6661",
     serviceStatus: "completed",
+    arrivedShift: 2,
     arrivedAt: "17:05",
+    finishedShift: 2,
     finishedAt: "17:40",
     machineOutcome: "monitoring",
     monitoringDetails: "Acompanhar medida após correção",
@@ -130,7 +140,9 @@ test("relatório gerado pode ser importado no turno seguinte sem perder a linha 
     callOrigin: "previous",
     callOpenedShift: 1,
     serviceStatus: "completed",
+    arrivedShift: 1,
     arrivedAt: "15:10",
+    finishedShift: 1,
     finishedAt: "15:45",
     machineOutcome: "released",
   });
@@ -145,7 +157,10 @@ test("relatório gerado pode ser importado no turno seguinte sem perder a linha 
   assert.equal(monitoring.callOrigin, "previous");
   assert.equal(monitoring.callOpenedShift, 2);
   assert.equal(monitoring.callOpenedAt, "16:10");
+  assert.equal(monitoring.tractianCode, "6661");
+  assert.equal(monitoring.arrivedShift, 2);
   assert.equal(monitoring.arrivedAt, "17:05");
+  assert.equal(monitoring.finishedShift, 2);
   assert.equal(monitoring.finishedAt, "17:40");
   assert.equal(monitoring.machineOutcome, "monitoring");
   assert.equal(monitoring.monitoringDetails, "Acompanhar medida após correção");
@@ -155,4 +170,37 @@ test("relatório gerado pode ser importado no turno seguinte sem perder a linha 
   assert.equal(imported.reviewLines.length, 0);
   assert.ok(imported.roundLedger.some((item) => item.tnl === 25 && item.status === "pending"));
   assert.ok(imported.roundLedger.some((item) => item.tnl === 19 && item.status === "pending"));
+});
+
+test("intervenção direta da manutenção e Tractian sobrevivem ao copiar e reimportar", () => {
+  const { state } = parseReport({ raw: maintenanceLifecycleReport, currentShift: 2, nextShift: 3 });
+  updateMaintenanceCase(state, 48, {
+    initiationMode: "maintenance",
+    callOrigin: "",
+    tractianCode: "6661",
+    serviceStatus: "completed",
+    arrivedShift: 1,
+    arrivedAt: "13:40",
+    finishedShift: 2,
+    finishedAt: "17:20",
+    machineOutcome: "released",
+  });
+  removeRecordsOfTnl(state, 48);
+  addCompleted(state, 48, "maintenance");
+
+  const copied = generateReport(state, defaultFields);
+  assert.match(copied, /Intervenção iniciada pela própria manutenção/);
+  assert.match(copied, /Tractian #6661/);
+  assert.match(copied, /Início da atuação: 1º turno às 13:40/);
+  assert.match(copied, /Término da atuação: 2º turno às 17:20/);
+
+  const imported = parseReport({ raw: copied, currentShift: 3, nextShift: 1 }).state;
+  const item = imported.maintenanceCases["48"];
+  assert.equal(item.initiationMode, "maintenance");
+  assert.equal(item.tractianCode, "6661");
+  assert.equal(item.arrivedShift, 1);
+  assert.equal(item.arrivedAt, "13:40");
+  assert.equal(item.finishedShift, 2);
+  assert.equal(item.finishedAt, "17:20");
+  assert.equal(item.machineOutcome, "released");
 });

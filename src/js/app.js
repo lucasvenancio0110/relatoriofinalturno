@@ -102,6 +102,10 @@ let activeTab = "dados";
 let cloudStarted = false;
 let toastTimer = null;
 let decisionResolver = null;
+let maintenanceDrafts = {};
+let activeMaintenanceDraftKey = "";
+let maintenanceResumeStarted = false;
+let maintenanceAutosaveTimer = null;
 
 function toast(message) {
   const node = byId("toast");
@@ -127,7 +131,15 @@ function saveSession() {
     state.raw = byId("rawInput").value;
     localStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ version: 1, state, fields: readFields(), selectedCell, activeTab }),
+      JSON.stringify({
+        version: 2,
+        state,
+        fields: readFields(),
+        selectedCell,
+        activeTab,
+        maintenanceDrafts,
+        activeMaintenanceDraftKey,
+      }),
     );
     return true;
   } catch (error) {
@@ -152,6 +164,21 @@ function restoreSession() {
     activeTab = ["dados", "ronda", "relatorio"].includes(saved.activeTab)
       ? saved.activeTab
       : "dados";
+    maintenanceDrafts =
+      saved.maintenanceDrafts && typeof saved.maintenanceDrafts === "object"
+        ? saved.maintenanceDrafts
+        : saved.maintenanceDraft
+          ? { [saved.maintenanceDraft.context?.subjectKey || `A:${saved.maintenanceDraft.tnl}`]: saved.maintenanceDraft }
+          : {};
+    activeMaintenanceDraftKey =
+      saved.activeMaintenanceDraftKey && maintenanceDrafts[saved.activeMaintenanceDraftKey]
+        ? saved.activeMaintenanceDraftKey
+        : Object.keys(maintenanceDrafts).sort(
+            (a, b) =>
+              String(maintenanceDrafts[b]?.updatedAt || "").localeCompare(
+                String(maintenanceDrafts[a]?.updatedAt || ""),
+              ),
+          )[0] || "";
     return true;
   } catch (error) {
     console.error("Falha ao restaurar a sessão", error);
@@ -199,6 +226,7 @@ function unlockAccess() {
   document.body.classList.remove("auth-locked");
   sessionStorage.setItem(ACCESS_SESSION_KEY, "1");
   startCloudQueue();
+  setTimeout(resumePendingMaintenanceDraft, 80);
 }
 
 function initAccess() {
@@ -540,50 +568,157 @@ function askText({ title, subtitle, initial = "" }) {
   });
 }
 
-function syncUnknownTime(inputId, checkboxId) {
+const MAINTENANCE_TIME_FIELDS = Object.freeze({
+  maintenanceOpenedAt: { unknown: "maintenanceOpenedUnknown", shift: "" },
+  maintenanceArrivedAt: { unknown: "maintenanceArrivedUnknown", shift: "maintenanceArrivedShift" },
+  maintenanceFinishedAt: { unknown: "maintenanceFinishedUnknown", shift: "maintenanceFinishedShift" },
+});
+
+function maintenanceDraftKey(context = {}, tnl = 0) {
+  return String(context.subjectKey || `A:${Number(tnl)}`);
+}
+
+function setMaintenanceChoice(fieldId, value) {
+  byId(fieldId).value = String(value || "");
+  document.querySelectorAll(`[data-maintenance-choice="${fieldId}"]`).forEach((button) => {
+    const selected = button.dataset.value === String(value || "");
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
+}
+
+function setMaintenanceShift(fieldId, value) {
+  byId(fieldId).value = value ? String(value) : "";
+  document.querySelectorAll(`[data-shift-target="${fieldId}"]`).forEach((button) => {
+    const selected = button.dataset.shift === String(value || "");
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
+}
+
+function renderTimeMode(inputId) {
   const input = byId(inputId);
-  const checkbox = byId(checkboxId);
-  input.disabled = checkbox.checked;
-  if (checkbox.checked) input.value = "";
+  const mode = input.dataset.timeMode || "";
+  const wrapper = document.querySelector(`[data-manual-time="${inputId}"]`);
+  if (wrapper) wrapper.hidden = mode !== "manual";
+  document.querySelectorAll(`[data-time-mode-target="${inputId}"]`).forEach((button) => {
+    const selected = button.dataset.timeMode === mode;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+    if (button.dataset.timeMode === "now") {
+      button.textContent = mode === "now" && input.value ? `AGORA · ${input.value}` : "AGORA";
+    }
+  });
+}
+
+function setTimeMode(inputId, mode, { preserveValue = false, save = true } = {}) {
+  const input = byId(inputId);
+  const config = MAINTENANCE_TIME_FIELDS[inputId];
+  if (!config) return;
+  const unknown = byId(config.unknown);
+  input.dataset.timeMode = mode || "";
+  if (mode === "now") {
+    if (!preserveValue || !input.value) input.value = clockNow();
+    unknown.checked = false;
+    if (config.shift && !byId(config.shift).value) {
+      setMaintenanceShift(config.shift, Number(readFields().currentShift));
+    }
+  } else if (mode === "manual") {
+    unknown.checked = false;
+    if (config.shift && !byId(config.shift).value) {
+      setMaintenanceShift(config.shift, Number(readFields().currentShift));
+    }
+  } else if (mode === "unknown") {
+    input.value = "";
+    unknown.checked = true;
+  } else {
+    input.value = "";
+    unknown.checked = false;
+  }
+  renderTimeMode(inputId);
+  byId("maintenanceFormError").textContent = "";
+  if (save) queueMaintenanceDraftSave();
 }
 
 function updateMaintenanceFormVisibility() {
+  const initiationMode = byId("maintenanceInitiationMode").value;
   const callOrigin = byId("maintenanceCallOrigin").value;
   const serviceStatus = byId("maintenanceServiceStatus").value;
   const machineOutcome = byId("maintenanceMachineOutcome").value;
-  byId("maintenanceOpenedField").hidden = callOrigin !== "current";
+  byId("maintenanceProductionFields").hidden = initiationMode !== "production";
+  byId("maintenanceOpenedField").hidden =
+    initiationMode !== "production" || callOrigin !== "current";
+  byId("maintenanceTractianField").hidden = ![
+    "production",
+    "maintenance",
+    "unknown",
+  ].includes(initiationMode);
   byId("maintenanceArrivedField").hidden = !["working", "completed"].includes(serviceStatus);
   byId("maintenanceFinishedField").hidden = serviceStatus !== "completed";
   byId("maintenanceMonitoringField").hidden = machineOutcome !== "monitoring";
-  syncUnknownTime("maintenanceOpenedAt", "maintenanceOpenedUnknown");
-  syncUnknownTime("maintenanceArrivedAt", "maintenanceArrivedUnknown");
-  syncUnknownTime("maintenanceFinishedAt", "maintenanceFinishedUnknown");
+  byId("maintenanceArrivedLabel").textContent =
+    initiationMode === "maintenance"
+      ? "Quando a atuação começou?"
+      : "Quando a manutenção chegou e iniciou?";
+  [
+    "maintenanceInitiationMode",
+    "maintenanceCallOrigin",
+    "maintenanceTractianStatus",
+    "maintenanceServiceStatus",
+    "maintenanceMachineOutcome",
+  ].forEach((id) => setMaintenanceChoice(id, byId(id).value));
+  ["maintenanceArrivedShift", "maintenanceFinishedShift"].forEach((id) =>
+    setMaintenanceShift(id, byId(id).value),
+  );
+  Object.keys(MAINTENANCE_TIME_FIELDS).forEach(renderTimeMode);
 }
 
 function readMaintenanceForm(tnl) {
+  const tractianCode = byId("maintenanceTractianCode").value.replace(/\D/g, "").slice(0, 12);
+  const initiationMode = byId("maintenanceInitiationMode").value;
   const value = {
     tnl: Number(tnl),
+    initiationMode,
+    tractianCode,
+    tractianStatus: tractianCode ? "informed" : byId("maintenanceTractianStatus").value,
     callOrigin: byId("maintenanceCallOrigin").value,
+    callOpenedShift: null,
     callOpenedAt: byId("maintenanceOpenedAt").value,
     callOpenedUnknown: byId("maintenanceOpenedUnknown").checked,
     serviceStatus: byId("maintenanceServiceStatus").value,
+    arrivedShift: Number(byId("maintenanceArrivedShift").value) || null,
     arrivedAt: byId("maintenanceArrivedAt").value,
     arrivedUnknown: byId("maintenanceArrivedUnknown").checked,
+    finishedShift: Number(byId("maintenanceFinishedShift").value) || null,
     finishedAt: byId("maintenanceFinishedAt").value,
     finishedUnknown: byId("maintenanceFinishedUnknown").checked,
     machineOutcome: byId("maintenanceMachineOutcome").value,
     monitoringDetails: byId("maintenanceMonitoringDetails").value.trim(),
     details: byId("maintenanceDetails").value.trim(),
   };
+  if (initiationMode === "production") {
+    value.callOpenedShift =
+      value.callOrigin === "current"
+        ? Number(readFields().currentShift)
+        : value.callOrigin === "previous"
+          ? previousShift(readFields().currentShift)
+          : null;
+  } else {
+    value.callOrigin = initiationMode === "pending" ? "not_opened" : initiationMode === "unknown" ? "unknown" : "";
+    value.callOpenedAt = "";
+    value.callOpenedUnknown = false;
+  }
   if (value.callOrigin !== "current") {
     value.callOpenedAt = "";
     value.callOpenedUnknown = false;
   }
   if (!["working", "completed"].includes(value.serviceStatus)) {
+    value.arrivedShift = null;
     value.arrivedAt = "";
     value.arrivedUnknown = false;
   }
   if (value.serviceStatus !== "completed") {
+    value.finishedShift = null;
     value.finishedAt = "";
     value.finishedUnknown = false;
   }
@@ -591,11 +726,97 @@ function readMaintenanceForm(tnl) {
   return value;
 }
 
-function showMaintenanceForm(tnl, initial = {}) {
+function maintenanceDraftUi() {
+  return {
+    timeModes: Object.fromEntries(
+      Object.keys(MAINTENANCE_TIME_FIELDS).map((id) => [id, byId(id).dataset.timeMode || ""]),
+    ),
+    detailsOpen: byId("maintenanceDetails").closest("details").open,
+  };
+}
+
+function persistMaintenanceDraft() {
+  const dialog = byId("maintenanceDialog");
+  const tnl = Number(dialog.dataset.tnl || 0);
+  const key = dialog.dataset.draftKey || "";
+  if (!tnl || !key) return false;
+  const previous = maintenanceDrafts[key] || {};
+  const values = normalizeMaintenanceCase(
+    { ...(previous.values || {}), ...readMaintenanceForm(tnl) },
+    tnl,
+  );
+  maintenanceDrafts[key] = {
+    version: 1,
+    tnl,
+    context: previous.context || { subjectKey: key, tnl },
+    values,
+    ui: maintenanceDraftUi(),
+    scrollTop: dialog.scrollTop,
+    openedAt: previous.openedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  activeMaintenanceDraftKey = key;
+  const saved = saveSession();
+  if (saved) {
+    byId("maintenanceAutosaveStatus").innerHTML =
+      '<span aria-hidden="true">●</span> Rascunho salvo automaticamente neste dispositivo';
+  }
+  return saved;
+}
+
+function queueMaintenanceDraftSave() {
+  if (!byId("maintenanceDialog").open) return;
+  byId("maintenanceAutosaveStatus").innerHTML =
+    '<span class="saving" aria-hidden="true">●</span> Salvando rascunho…';
+  clearTimeout(maintenanceAutosaveTimer);
+  maintenanceAutosaveTimer = setTimeout(persistMaintenanceDraft, 120);
+}
+
+function flushMaintenanceDraft() {
+  clearTimeout(maintenanceAutosaveTimer);
+  maintenanceAutosaveTimer = null;
+  if (byId("maintenanceDialog").dataset.draftKey) persistMaintenanceDraft();
+}
+
+function clearMaintenanceDraft(key) {
+  if (!key) return;
+  delete maintenanceDrafts[key];
+  const dialog = byId("maintenanceDialog");
+  if (dialog.dataset.draftKey === key) {
+    delete dialog.dataset.draftKey;
+    delete dialog.dataset.tnl;
+  }
+  activeMaintenanceDraftKey = Object.keys(maintenanceDrafts).sort(
+    (a, b) =>
+      String(maintenanceDrafts[b]?.updatedAt || "").localeCompare(
+        String(maintenanceDrafts[a]?.updatedAt || ""),
+      ),
+  )[0] || "";
+}
+
+function showMaintenanceForm(tnl, initial = {}, context = {}) {
   const dialog = byId("maintenanceDialog");
   const form = byId("maintenanceForm");
-  let item = normalizeMaintenanceCase(initial, tnl);
-  if (item.callOpenedShift) {
+  const key = maintenanceDraftKey(context, tnl);
+  const storedDraft = maintenanceDrafts[key];
+  const storedValues = storedDraft?.values || {};
+  let item = normalizeMaintenanceCase(
+    {
+      ...initial,
+      ...storedValues,
+      reasons: uniqueStrings([...(initial.reasons || []), ...(storedValues.reasons || [])]),
+      sourceSections: uniqueStrings([
+        ...(initial.sourceSections || []),
+        ...(storedValues.sourceSections || []),
+      ]),
+      originalLines: uniqueStrings([
+        ...(initial.originalLines || []),
+        ...(storedValues.originalLines || []),
+      ]),
+    },
+    tnl,
+  );
+  if (item.callOpenedShift && item.initiationMode === "production") {
     item = normalizeMaintenanceCase(
       {
         ...item,
@@ -607,41 +828,79 @@ function showMaintenanceForm(tnl, initial = {}) {
       tnl,
     );
   }
-  byId("maintenanceDialogTitle").textContent = `Manutenção — TNL ${padTnl(tnl)}`;
-  byId("maintenancePreviousShift").textContent = `TURNO ANTERIOR — ${previousShift(readFields().currentShift)}º TURNO`;
-  byId("maintenanceCurrentShift").textContent = `NOSSO TURNO — ${Number(readFields().currentShift)}º TURNO`;
-  byId("maintenanceSourceSummary").innerHTML = [
-    item.reportedCompleted
-      ? "<strong>✅ Informada como concluída pelo preparador.</strong> A conclusão ainda precisa ser confirmada."
-      : "<strong>Manutenção registrada para acompanhamento.</strong>",
-    item.reasons.length ? `Motivo: ${escapeHtml(item.reasons.join(" + "))}` : "",
-    item.originalLines.length ? `Original: ${lineBreaks(item.originalLines.join("\n"))}` : "",
-  ]
-    .filter(Boolean)
-    .join("<br />");
+  maintenanceDrafts[key] = {
+    ...storedDraft,
+    version: 1,
+    tnl: Number(tnl),
+    context: {
+      subjectKey: context.subjectKey || key,
+      tnl: Number(tnl),
+      reason: context.reason || maintenanceReason(item),
+      producing: Boolean(context.producing),
+    },
+    values: item,
+    openedAt: storedDraft?.openedAt || new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  activeMaintenanceDraftKey = key;
+  dialog.dataset.tnl = String(Number(tnl));
+  dialog.dataset.draftKey = key;
 
-  byId("maintenanceCallOrigin").value = item.callOrigin;
+  byId("maintenanceDialogTitle").textContent = `Manutenção — TNL ${padTnl(tnl)}`;
+  byId("maintenancePreviousShift").textContent = `TURNO ANTERIOR · ${previousShift(readFields().currentShift)}º TURNO`;
+  byId("maintenanceCurrentShift").textContent = `NOSSO TURNO · ${Number(readFields().currentShift)}º TURNO`;
+  const received = item.originalLines.length
+    ? `<details><summary>Ver informação recebida</summary><p>${lineBreaks(item.originalLines.join("\n"))}</p></details>`
+    : "";
+  byId("maintenanceSourceSummary").innerHTML = `${
+    item.reportedCompleted
+      ? "<strong>✅ O preparador informou conclusão; confirme o estado real.</strong>"
+      : "<strong>Manutenção registrada para acompanhamento.</strong>"
+  }${item.reasons.length ? `<span>Motivo: ${escapeHtml(item.reasons.join(" + "))}</span>` : ""}${received}`;
+
+  setMaintenanceChoice("maintenanceInitiationMode", item.initiationMode);
+  setMaintenanceChoice("maintenanceCallOrigin", item.callOrigin);
+  byId("maintenanceTractianCode").value = item.tractianCode;
+  setMaintenanceChoice("maintenanceTractianStatus", item.tractianStatus);
   byId("maintenanceOpenedAt").value = item.callOpenedAt;
   byId("maintenanceOpenedUnknown").checked = item.callOpenedUnknown;
-  byId("maintenanceServiceStatus").value = item.serviceStatus || (item.reportedCompleted ? "completed" : "");
+  setMaintenanceChoice("maintenanceServiceStatus", item.serviceStatus);
+  setMaintenanceShift("maintenanceArrivedShift", item.arrivedShift);
   byId("maintenanceArrivedAt").value = item.arrivedAt;
   byId("maintenanceArrivedUnknown").checked = item.arrivedUnknown;
+  setMaintenanceShift("maintenanceFinishedShift", item.finishedShift);
   byId("maintenanceFinishedAt").value = item.finishedAt;
   byId("maintenanceFinishedUnknown").checked = item.finishedUnknown;
-  byId("maintenanceMachineOutcome").value = item.machineOutcome;
+  setMaintenanceChoice("maintenanceMachineOutcome", item.machineOutcome);
   byId("maintenanceMonitoringDetails").value = item.monitoringDetails;
   byId("maintenanceDetails").value = item.details;
+  byId("maintenanceDetails").closest("details").open =
+    storedDraft?.ui?.detailsOpen ?? Boolean(item.details);
   byId("maintenanceFormError").textContent = "";
+  Object.entries(MAINTENANCE_TIME_FIELDS).forEach(([inputId, config]) => {
+    const mode =
+      storedDraft?.ui?.timeModes?.[inputId] ||
+      (byId(config.unknown).checked ? "unknown" : byId(inputId).value ? "manual" : "");
+    setTimeMode(inputId, mode, { preserveValue: true, save: false });
+  });
   updateMaintenanceFormVisibility();
   dialog.returnValue = "";
   dialog.showModal();
-  setTimeout(() => byId("maintenanceCallOrigin").focus(), 80);
+  dialog.scrollTop = Number(storedDraft?.scrollTop || 0);
+  persistMaintenanceDraft();
+  setTimeout(() => {
+    const firstOrigin = form.querySelector(
+      '[data-maintenance-choice="maintenanceInitiationMode"].selected, [data-maintenance-choice="maintenanceInitiationMode"]',
+    );
+    (firstOrigin || byId("maintenanceSave")).focus();
+  }, 80);
 
   return new Promise((resolve) => {
     let result = null;
     const handleSubmit = (event) => {
       if (event.submitter?.value !== "save") return;
       event.preventDefault();
+      flushMaintenanceDraft();
       const candidate = {
         ...item,
         ...readMaintenanceForm(tnl),
@@ -649,12 +908,14 @@ function showMaintenanceForm(tnl, initial = {}) {
       const validation = validateMaintenanceUpdate(candidate);
       if (!validation.valid) {
         byId("maintenanceFormError").textContent = validation.errors[0];
+        byId("maintenanceFormError").scrollIntoView({ behavior: "smooth", block: "center" });
         return;
       }
       result = validation.value;
       dialog.close("save");
     };
     const handleClose = () => {
+      flushMaintenanceDraft();
       form.removeEventListener("submit", handleSubmit);
       dialog.removeEventListener("close", handleClose);
       resolve(dialog.returnValue === "save" ? result : null);
@@ -928,7 +1189,8 @@ async function finishMaintenanceDecision({
     },
     tnl,
   );
-  const tracking = await showMaintenanceForm(tnl, seed);
+  const context = { subjectKey, tnl: Number(tnl), reason, producing };
+  const tracking = await showMaintenanceForm(tnl, seed, context);
   if (!tracking) return false;
 
   let adjustmentReason = "";
@@ -979,6 +1241,7 @@ async function finishMaintenanceDecision({
   }
 
   const finalCase = maintenanceCaseOf(state, tnl);
+  clearMaintenanceDraft(maintenanceDraftKey(context, tnl));
   commitAndRefresh({
     subjectKey,
     tnl,
@@ -988,6 +1251,41 @@ async function finishMaintenanceDecision({
     before,
   });
   return true;
+}
+
+async function resumePendingMaintenanceDraft() {
+  if (maintenanceResumeStarted || byId("maintenanceDialog").open) return;
+  const draft = maintenanceDrafts[activeMaintenanceDraftKey];
+  const context = draft?.context;
+  const tnl = Number(draft?.tnl || context?.tnl || 0);
+  if (!draft || !context || !tnl) return;
+  maintenanceResumeStarted = true;
+  selectedCell = cellForTnl(tnl);
+  switchTab("ronda", { save: false });
+  renderRound();
+  saveSession();
+  toast(`Rascunho da TNL ${padTnl(tnl)} restaurado`);
+  const beforeApply = () => {
+    if (!String(context.subjectKey || "").startsWith("D:")) return;
+    const id = Number(String(context.subjectKey).slice(2));
+    const item = state.devObsItems.find((entry) => Number(entry.id) === id);
+    if (item) {
+      item.status = "resolved";
+      item.reviewed = true;
+    }
+  };
+  try {
+    await finishMaintenanceDecision({
+      subjectKey: context.subjectKey || `A:${tnl}`,
+      tnl,
+      reason: context.reason || maintenanceReason(draft.values || {}),
+      producing: Boolean(context.producing),
+      before: snapshotSubject(state, context.subjectKey || `A:${tnl}`),
+      beforeApply,
+    });
+  } finally {
+    maintenanceResumeStarted = false;
+  }
 }
 
 async function chooseMaintenance(
@@ -1366,6 +1664,8 @@ function importCurrentReport() {
     nextShift: readFields().nextShift,
   });
   state = parsed.state;
+  maintenanceDrafts = {};
+  activeMaintenanceDraftKey = "";
   state.cloudPassageId = null;
   byId("development").value = parsed.development;
   byId("observations").value = parsed.observations;
@@ -1380,6 +1680,8 @@ function clearSession() {
   if (!window.confirm("Deseja limpar toda a sessão?")) return;
   localStorage.removeItem(STORAGE_KEY);
   state = createEmptyState();
+  maintenanceDrafts = {};
+  activeMaintenanceDraftKey = "";
   selectedCell = "01";
   activeTab = "dados";
   byId("rawInput").value = "";
@@ -1480,37 +1782,87 @@ function bindEvents() {
       byId("textDialogInput").focus();
     }
   });
-  ["maintenanceCallOrigin", "maintenanceServiceStatus", "maintenanceMachineOutcome"].forEach(
-    (id) => byId(id).addEventListener("change", updateMaintenanceFormVisibility),
-  );
-  [
-    ["maintenanceOpenedAt", "maintenanceOpenedUnknown"],
-    ["maintenanceArrivedAt", "maintenanceArrivedUnknown"],
-    ["maintenanceFinishedAt", "maintenanceFinishedUnknown"],
-  ].forEach(([inputId, checkboxId]) => {
-    byId(checkboxId).addEventListener("change", () => {
-      syncUnknownTime(inputId, checkboxId);
-      byId("maintenanceFormError").textContent = "";
-    });
-    byId(inputId).addEventListener("input", () => {
-      if (byId(inputId).value) byId(checkboxId).checked = false;
-      syncUnknownTime(inputId, checkboxId);
-    });
-  });
   byId("maintenanceForm").addEventListener("click", (event) => {
-    const button = event.target.closest("[data-now-target]");
-    if (!button) return;
-    const inputId = button.dataset.nowTarget;
-    const checkboxId = {
-      maintenanceOpenedAt: "maintenanceOpenedUnknown",
-      maintenanceArrivedAt: "maintenanceArrivedUnknown",
-      maintenanceFinishedAt: "maintenanceFinishedUnknown",
-    }[inputId];
-    if (checkboxId) byId(checkboxId).checked = false;
-    byId(inputId).disabled = false;
-    byId(inputId).value = clockNow();
-    byId("maintenanceFormError").textContent = "";
+    const choice = event.target.closest("[data-maintenance-choice]");
+    if (choice) {
+      const fieldId = choice.dataset.maintenanceChoice;
+      const value = choice.dataset.value;
+      const previousValue = byId(fieldId).value;
+      setMaintenanceChoice(fieldId, value);
+      if (fieldId === "maintenanceInitiationMode") {
+        if (value === "production" && !["previous", "current"].includes(byId("maintenanceCallOrigin").value)) {
+          setMaintenanceChoice("maintenanceCallOrigin", "");
+        } else if (value === "pending") {
+          setMaintenanceChoice("maintenanceCallOrigin", "not_opened");
+          setMaintenanceChoice("maintenanceTractianStatus", "none");
+          byId("maintenanceTractianCode").value = "";
+          setMaintenanceChoice("maintenanceServiceStatus", "waiting");
+        } else if (value === "maintenance") {
+          setMaintenanceChoice("maintenanceCallOrigin", "");
+        } else if (value === "unknown") {
+          setMaintenanceChoice("maintenanceCallOrigin", "unknown");
+        }
+        if (
+          ["production", "maintenance"].includes(value) &&
+          previousValue === "pending" &&
+          !byId("maintenanceTractianCode").value
+        ) {
+          setMaintenanceChoice("maintenanceTractianStatus", "");
+        }
+      }
+      if (fieldId === "maintenanceTractianStatus") {
+        byId("maintenanceTractianCode").value = "";
+      }
+      updateMaintenanceFormVisibility();
+      byId("maintenanceFormError").textContent = "";
+      queueMaintenanceDraftSave();
+      return;
+    }
+    const timeMode = event.target.closest("[data-time-mode-target]");
+    if (timeMode) {
+      const inputId = timeMode.dataset.timeModeTarget;
+      const mode = timeMode.dataset.timeMode;
+      setTimeMode(inputId, mode);
+      if (mode === "manual") {
+        const input = byId(inputId);
+        input.focus();
+        try {
+          input.showPicker?.();
+        } catch {}
+      }
+      return;
+    }
+    const shift = event.target.closest("[data-shift-target]");
+    if (shift) {
+      setMaintenanceShift(shift.dataset.shiftTarget, shift.dataset.shift);
+      byId("maintenanceFormError").textContent = "";
+      queueMaintenanceDraftSave();
+    }
   });
+  byId("maintenanceForm").addEventListener("input", (event) => {
+    const target = event.target;
+    if (target.id === "maintenanceTractianCode") {
+      target.value = target.value.replace(/\D/g, "").slice(0, 12);
+      setMaintenanceChoice(
+        "maintenanceTractianStatus",
+        target.value ? "informed" : byId("maintenanceTractianStatus").value === "informed" ? "" : byId("maintenanceTractianStatus").value,
+      );
+    }
+    if (MAINTENANCE_TIME_FIELDS[target.id]) {
+      target.dataset.timeMode = "manual";
+      byId(MAINTENANCE_TIME_FIELDS[target.id].unknown).checked = false;
+      renderTimeMode(target.id);
+    }
+    byId("maintenanceFormError").textContent = "";
+    queueMaintenanceDraftSave();
+  });
+  byId("maintenanceForm").addEventListener("change", queueMaintenanceDraftSave);
+  byId("maintenanceForm").querySelector(".optional-panel").addEventListener("toggle", queueMaintenanceDraftSave);
+  byId("maintenanceDialog").addEventListener("scroll", queueMaintenanceDraftSave, { passive: true });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") flushMaintenanceDraft();
+  });
+  window.addEventListener("pagehide", flushMaintenanceDraft);
 
   byId("btnOpenAdd").addEventListener("click", () => {
     byId("addMachine").value = "";

@@ -30,7 +30,8 @@ test("validação exige os horários condicionais e o detalhe de acompanhamento"
   assert.equal(invalid.valid, false);
   assert.deepEqual(invalid.errors, [
     "Informe o horário de abertura ou marque como não informado.",
-    "Informe o horário de chegada ou marque como não informado.",
+    "Informe o código Tractian ou selecione uma das alternativas.",
+    "Informe o horário de início da atuação ou marque como não informado.",
     "Informe o horário de término ou marque como não informado.",
     "Informe o que precisa ser acompanhado.",
   ]);
@@ -39,8 +40,11 @@ test("validação exige os horários condicionais e o detalhe de acompanhamento"
     tnl: 19,
     callOrigin: "current",
     callOpenedAt: "16:10",
+    tractianStatus: "none",
     serviceStatus: "completed",
+    arrivedShift: 2,
     arrivedAt: "17:05",
+    finishedShift: 2,
     finishedAt: "17:40",
     machineOutcome: "monitoring",
     monitoringDetails: "Medida após a troca do bedame",
@@ -63,8 +67,11 @@ test("caso de manutenção mantém origem, horários, resultado e texto rastreá
     {
       callOrigin: "current",
       callOpenedAt: "16:10",
+      tractianCode: "6661",
       serviceStatus: "completed",
+      arrivedShift: 2,
       arrivedAt: "17:05",
+      finishedShift: 2,
       finishedAt: "17:40",
       machineOutcome: "monitoring",
       monitoringDetails: "Medida após a troca do bedame",
@@ -76,7 +83,9 @@ test("caso de manutenção mantém origem, horários, resultado e texto rastreá
   assert.equal(item.reportedCompleted, true);
   assert.equal(maintenanceReportBucket(item), "monitoring");
   assert.match(maintenanceDecisionDetail(item, 2), /Chamado aberto pelo 2º turno às 16:10/);
-  assert.match(maintenanceDecisionDetail(item, 2), /Manutenção atuou de 17:05 até 17:40/);
+  assert.match(maintenanceDecisionDetail(item, 2), /Tractian #6661/);
+  assert.match(maintenanceDecisionDetail(item, 2), /Início da atuação: 2º turno às 17:05/);
+  assert.match(maintenanceDecisionDetail(item, 2), /Término da atuação: 2º turno às 17:40/);
   assert.match(maintenanceDecisionDetail(item, 2), /Como ficou: EM ACOMPANHAMENTO/);
   assert.match(maintenanceDecisionDetail(item, 2), /Acompanhar: Medida após a troca do bedame/);
 });
@@ -85,6 +94,7 @@ test("atendimento em andamento não pode resultar em máquina liberada", () => {
   const result = validateMaintenanceUpdate({
     tnl: 48,
     callOrigin: "previous",
+    tractianStatus: "not_found",
     serviceStatus: "working",
     arrivedUnknown: true,
     machineOutcome: "released",
@@ -114,4 +124,27 @@ test("atualização posterior preserva a origem e o horário já registrados", (
   assert.equal(updated.arrivedAt, "17:05");
   assert.equal(updated.finishedAt, "17:40");
   assert.equal(updated.machineOutcome, "released");
+});
+
+test("preventiva iniciada pela manutenção aceita Tractian e horários em turnos diferentes", () => {
+  const result = validateMaintenanceUpdate({
+    tnl: 88,
+    initiationMode: "maintenance",
+    tractianCode: "#6661",
+    serviceStatus: "completed",
+    arrivedShift: 1,
+    arrivedAt: "13:40",
+    finishedShift: 2,
+    finishedAt: "17:20",
+    machineOutcome: "released",
+  });
+
+  assert.equal(result.valid, true);
+  assert.equal(result.value.tractianCode, "6661");
+  const detail = maintenanceDecisionDetail({ ...result.value, reviewed: true }, 2);
+  assert.match(detail, /Intervenção iniciada pela própria manutenção/);
+  assert.match(detail, /Tractian #6661/);
+  assert.match(detail, /Início da atuação: 1º turno às 13:40/);
+  assert.match(detail, /Término da atuação: 2º turno às 17:20/);
+  assert.match(detail, /Como ficou: LIBERADA/);
 });

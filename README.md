@@ -18,12 +18,20 @@ Aplicação modular para preparar, revisar e copiar a passagem final de turno da
 ## Acompanhamento de manutenção
 
 Toda TNL citada em manutenção entra na ronda, inclusive quando chega marcada com `✅` ou no
-bloco de manutenções concluídas. O fluxo registra o turno que abriu o chamado, os horários
-condicionais de abertura/chegada/término e uma das situações finais: liberada, em
-acompanhamento, continua parada, passou para ajuste ou passou para setup. As atualizações
-permanecem vinculadas à TNL e podem ser refeitas sem perder a linha do tempo já registrada.
-No relatório final, as listas operacionais permanecem compactas e o histórico de chamado,
-atuação e resultado aparece agrupado por máquina em `DETALHAMENTO DAS MANUTENÇÕES`.
+bloco de manutenções concluídas. A Ronda Expressa usa botões grandes para registrar se a
+produção abriu o chamado ou se a manutenção iniciou diretamente, o código Tractian (por
+exemplo, `#6661`), o turno e o horário de cada etapa e uma das situações finais: liberada, em
+acompanhamento, continua parada, passou para ajuste ou passou para setup.
+
+O formulário mantém rascunhos automaticamente no dispositivo a cada alteração e também ao
+ocultar, fechar ou recarregar a página. Ao voltar no mesmo navegador, a TNL e o formulário em
+andamento são restaurados sem exigir um botão de checkpoint. A confirmação final remove o
+rascunho e registra a decisão. Limpar os dados do site no navegador também remove esses
+rascunhos locais.
+
+No relatório final, as listas operacionais permanecem compactas e o detalhamento essencial de
+origem, Tractian, atuação e resultado aparece agrupado por máquina em
+`DETALHAMENTO DAS MANUTENÇÕES`.
 
 ## Validação local
 

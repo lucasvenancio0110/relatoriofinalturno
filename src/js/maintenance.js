@@ -1,5 +1,18 @@
 import { normalizeText, padTnl, uniqueStrings } from "./utils.js";
 
+export const INITIATION_MODES = Object.freeze({
+  production: "PRODUÇÃO ABRIU CHAMADO",
+  maintenance: "MANUTENÇÃO INICIOU DIRETAMENTE",
+  pending: "AINDA NÃO INICIOU / SEM CHAMADO",
+  unknown: "ORIGEM NÃO CONFIRMADA",
+});
+
+export const TRACTIAN_STATUSES = Object.freeze({
+  informed: "CÓDIGO INFORMADO",
+  none: "NÃO POSSUI CÓDIGO",
+  not_found: "CÓDIGO NÃO LOCALIZADO",
+});
+
 export const CALL_ORIGINS = Object.freeze({
   previous: "TURNO ANTERIOR",
   current: "NOSSO TURNO",
@@ -24,6 +37,8 @@ export const MACHINE_OUTCOMES = Object.freeze({
 });
 
 const CALL_ORIGIN_KEYS = Object.freeze(Object.keys(CALL_ORIGINS));
+const INITIATION_MODE_KEYS = Object.freeze(Object.keys(INITIATION_MODES));
+const TRACTIAN_STATUS_KEYS = Object.freeze(Object.keys(TRACTIAN_STATUSES));
 const SERVICE_STATUS_KEYS = Object.freeze(Object.keys(SERVICE_STATUSES));
 const MACHINE_OUTCOME_KEYS = Object.freeze(Object.keys(MACHINE_OUTCOMES));
 
@@ -63,21 +78,42 @@ export function minutesBetweenTimes(start, end) {
 
 export function normalizeMaintenanceCase(value = {}, tnl = value?.tnl) {
   const machine = Number(tnl || value?.tnl || 0);
+  const callOrigin = allowed(value?.callOrigin, CALL_ORIGIN_KEYS);
+  const legacyInitiationMode = ["previous", "current"].includes(callOrigin)
+    ? "production"
+    : callOrigin === "not_opened"
+      ? "pending"
+      : callOrigin === "unknown"
+        ? "unknown"
+        : "";
+  const tractianCode = String(value?.tractianCode || "").replace(/\D/g, "").slice(0, 12);
   return {
     tnl: machine,
     reasons: uniqueStrings(value?.reasons || []),
     sourceSections: uniqueStrings(value?.sourceSections || []),
     originalLines: uniqueStrings(value?.originalLines || []),
     reportedCompleted: Boolean(value?.reportedCompleted),
-    callOrigin: allowed(value?.callOrigin, CALL_ORIGIN_KEYS),
+    initiationMode:
+      allowed(value?.initiationMode, INITIATION_MODE_KEYS) || legacyInitiationMode,
+    tractianCode,
+    tractianStatus: tractianCode
+      ? "informed"
+      : allowed(value?.tractianStatus, TRACTIAN_STATUS_KEYS),
+    callOrigin,
     callOpenedShift: [1, 2, 3].includes(Number(value?.callOpenedShift))
       ? Number(value.callOpenedShift)
       : null,
     callOpenedAt: String(value?.callOpenedAt || ""),
     callOpenedUnknown: Boolean(value?.callOpenedUnknown),
     serviceStatus: allowed(value?.serviceStatus, SERVICE_STATUS_KEYS),
+    arrivedShift: [1, 2, 3].includes(Number(value?.arrivedShift))
+      ? Number(value.arrivedShift)
+      : null,
     arrivedAt: String(value?.arrivedAt || ""),
     arrivedUnknown: Boolean(value?.arrivedUnknown),
+    finishedShift: [1, 2, 3].includes(Number(value?.finishedShift))
+      ? Number(value.finishedShift)
+      : null,
     finishedAt: String(value?.finishedAt || ""),
     finishedUnknown: Boolean(value?.finishedUnknown),
     machineOutcome: allowed(value?.machineOutcome, MACHINE_OUTCOME_KEYS),
@@ -163,25 +199,48 @@ function hasTimeOrUnknown(value, unknown) {
 export function validateMaintenanceUpdate(value) {
   const item = normalizeMaintenanceCase(value);
   const errors = [];
-  if (!item.callOrigin) errors.push("Informe quem abriu o chamado.");
+  if (!item.initiationMode) errors.push("Informe como a manutenção começou.");
+  if (item.initiationMode === "production" && !["previous", "current"].includes(item.callOrigin)) {
+    errors.push("Informe em qual turno a produção abriu o chamado.");
+  }
   if (
+    item.initiationMode === "production" &&
     item.callOrigin === "current" &&
     !hasTimeOrUnknown(item.callOpenedAt, item.callOpenedUnknown)
   ) {
     errors.push("Informe o horário de abertura ou marque como não informado.");
+  }
+  if (
+    ["production", "maintenance"].includes(item.initiationMode) &&
+    !item.tractianStatus
+  ) {
+    errors.push("Informe o código Tractian ou selecione uma das alternativas.");
+  }
+  if (item.tractianStatus === "informed" && !item.tractianCode) {
+    errors.push("Informe os números do código Tractian.");
   }
   if (!item.serviceStatus) errors.push("Informe a situação da manutenção.");
   if (
     ["working", "completed"].includes(item.serviceStatus) &&
     !hasTimeOrUnknown(item.arrivedAt, item.arrivedUnknown)
   ) {
-    errors.push("Informe o horário de chegada ou marque como não informado.");
+    errors.push("Informe o horário de início da atuação ou marque como não informado.");
+  }
+  if (
+    ["working", "completed"].includes(item.serviceStatus) &&
+    item.arrivedAt &&
+    !item.arrivedShift
+  ) {
+    errors.push("Informe em qual turno a atuação começou.");
   }
   if (
     item.serviceStatus === "completed" &&
     !hasTimeOrUnknown(item.finishedAt, item.finishedUnknown)
   ) {
     errors.push("Informe o horário de término ou marque como não informado.");
+  }
+  if (item.serviceStatus === "completed" && item.finishedAt && !item.finishedShift) {
+    errors.push("Informe em qual turno a atuação terminou.");
   }
   if (!item.machineOutcome) errors.push("Informe como a máquina ficou.");
   if (
@@ -196,6 +255,12 @@ export function validateMaintenanceUpdate(value) {
   return { valid: errors.length === 0, errors, value: item };
 }
 
+function shiftTime(shift, time, unknown, fallback = "horário não informado") {
+  if (time) return `${shift ? `${shift}º turno às ` : "às "}${time}`;
+  if (unknown) return fallback;
+  return fallback;
+}
+
 export function maintenanceTrackingLines(item, currentShift) {
   const value = normalizeMaintenanceCase(item);
   if (!value.reviewed) {
@@ -205,39 +270,39 @@ export function maintenanceTrackingLines(item, currentShift) {
   }
 
   const lines = [];
-  if (value.callOrigin === "previous") {
+  if (value.initiationMode === "production" && value.callOrigin === "previous") {
     lines.push(`📞 Chamado aberto pelo ${value.callOpenedShift || previousShift(currentShift)}º turno.`);
-  } else if (value.callOrigin === "current") {
+  } else if (value.initiationMode === "production" && value.callOrigin === "current") {
     const openedShift = value.callOpenedShift || Number(currentShift);
     lines.push(
       value.callOpenedAt
         ? `📞 Chamado aberto pelo ${openedShift}º turno às ${value.callOpenedAt}.`
         : `📞 Chamado aberto pelo ${openedShift}º turno; horário não informado.`,
     );
-  } else if (value.callOrigin === "not_opened") {
-    lines.push("📞 Chamado ainda não foi aberto.");
+  } else if (value.initiationMode === "maintenance") {
+    lines.push("🛠️ Intervenção iniciada pela própria manutenção.");
+  } else if (value.initiationMode === "pending") {
+    lines.push("📞 Chamado ainda não foi aberto e a manutenção não iniciou.");
   } else {
-    lines.push("📞 Origem do chamado não confirmada.");
+    lines.push("📞 Origem do atendimento não confirmada.");
+  }
+
+  if (value.tractianStatus === "informed" && value.tractianCode) {
+    lines.push(`🎫 Tractian #${value.tractianCode}.`);
+  } else if (value.tractianStatus === "none") {
+    lines.push("🎫 Sem código Tractian.");
+  } else if (value.tractianStatus === "not_found") {
+    lines.push("🎫 Código Tractian não localizado.");
   }
 
   if (value.serviceStatus === "waiting") {
-    lines.push("🔧 Manutenção ainda não chegou.");
+    lines.push("🔧 Manutenção ainda não chegou ou não iniciou a atuação.");
   } else if (value.serviceStatus === "working") {
-    lines.push(
-      value.arrivedAt
-        ? `🔧 Manutenção atuando desde ${value.arrivedAt}.`
-        : "🔧 Manutenção está atuando; horário de chegada não informado.",
-    );
+    lines.push(`🕒 Início da atuação: ${shiftTime(value.arrivedShift, value.arrivedAt, value.arrivedUnknown)}.`);
+    lines.push(`🔧 Continuava em atuação no fechamento do ${Number(currentShift)}º turno.`);
   } else if (value.serviceStatus === "completed") {
-    if (value.arrivedAt && value.finishedAt) {
-      lines.push(`🔧 Manutenção atuou de ${value.arrivedAt} até ${value.finishedAt}.`);
-    } else if (value.arrivedAt) {
-      lines.push(`🔧 Manutenção chegou às ${value.arrivedAt}; horário de término não informado.`);
-    } else if (value.finishedAt) {
-      lines.push(`🔧 Manutenção terminou às ${value.finishedAt}; horário de chegada não informado.`);
-    } else {
-      lines.push("🔧 Atendimento finalizado; horários de chegada e término não informados.");
-    }
+    lines.push(`🕒 Início da atuação: ${shiftTime(value.arrivedShift, value.arrivedAt, value.arrivedUnknown)}.`);
+    lines.push(`🏁 Término da atuação: ${shiftTime(value.finishedShift, value.finishedAt, value.finishedUnknown)}.`);
   } else if (value.serviceStatus === "resolved_without") {
     lines.push("🔧 Problema resolvido sem atuação da manutenção.");
   } else {
@@ -320,17 +385,56 @@ export function parseMaintenanceTrackingLine(item, line, currentShift) {
   if (match) {
     const openedShift = Number(match[1]);
     update = {
+      initiationMode: "production",
       callOrigin: relativeCallOrigin(openedShift, currentShift),
       callOpenedShift: openedShift,
       callOpenedAt: match[2] || "",
       callOpenedUnknown: !match[2] && /horario nao informado/i.test(normalized),
     };
+  } else if (/^Intervencao iniciada pela propria manutencao/i.test(normalized)) {
+    update = { initiationMode: "maintenance", callOrigin: "", callOpenedShift: null };
   } else if (/^Chamado ainda nao foi aberto/i.test(normalized)) {
-    update = { callOrigin: "not_opened", callOpenedShift: null };
-  } else if (/^Origem do chamado nao confirmada/i.test(normalized)) {
-    update = { callOrigin: "unknown", callOpenedShift: null };
+    update = { initiationMode: "pending", callOrigin: "not_opened", callOpenedShift: null };
+  } else if (/^Origem do (?:chamado|atendimento) nao confirmada/i.test(normalized)) {
+    update = { initiationMode: "unknown", callOrigin: "unknown", callOpenedShift: null };
+  } else if ((match = normalized.match(/^Tractian\s*#\s*(\d+)/i))) {
+    update = { tractianCode: match[1], tractianStatus: "informed" };
+  } else if (/^Sem codigo Tractian/i.test(normalized)) {
+    update = { tractianCode: "", tractianStatus: "none" };
+  } else if (/^Codigo Tractian nao localizado/i.test(normalized)) {
+    update = { tractianCode: "", tractianStatus: "not_found" };
   } else if (/^Manutencao ainda nao chegou/i.test(normalized)) {
     update = { serviceStatus: "waiting", arrivedAt: "", arrivedUnknown: false };
+  } else if ((match = normalized.match(/^Inicio da atuacao:\s*(?:([123])\s*[º°o]?\s*turno\s+)?(?:as\s+)?(\d{2}:\d{2})/i))) {
+    update = {
+      serviceStatus: value.serviceStatus === "completed" ? "completed" : "working",
+      arrivedShift: match[1] ? Number(match[1]) : null,
+      arrivedAt: match[2],
+      arrivedUnknown: false,
+    };
+  } else if (/^Inicio da atuacao:\s*horario nao informado/i.test(normalized)) {
+    update = {
+      serviceStatus: value.serviceStatus === "completed" ? "completed" : "working",
+      arrivedShift: null,
+      arrivedAt: "",
+      arrivedUnknown: true,
+    };
+  } else if ((match = normalized.match(/^Termino da atuacao:\s*(?:([123])\s*[º°o]?\s*turno\s+)?(?:as\s+)?(\d{2}:\d{2})/i))) {
+    update = {
+      serviceStatus: "completed",
+      finishedShift: match[1] ? Number(match[1]) : null,
+      finishedAt: match[2],
+      finishedUnknown: false,
+    };
+  } else if (/^Termino da atuacao:\s*horario nao informado/i.test(normalized)) {
+    update = {
+      serviceStatus: "completed",
+      finishedShift: null,
+      finishedAt: "",
+      finishedUnknown: true,
+    };
+  } else if (/^Continuava em atuacao no fechamento/i.test(normalized)) {
+    update = { serviceStatus: "working" };
   } else if ((match = normalized.match(/^Manutencao atuando desde\s+(\d{2}:\d{2})/i))) {
     update = { serviceStatus: "working", arrivedAt: match[1], arrivedUnknown: false };
   } else if (/^Manutencao esta atuando; horario de chegada nao informado/i.test(normalized)) {

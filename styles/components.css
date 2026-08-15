@@ -124,11 +124,11 @@
 
 .round-card {
   position: relative;
-  min-height: 180px;
+  min-height: 148px;
   overflow: hidden;
   display: grid;
-  grid-template-rows: auto auto 1fr;
-  gap: 9px;
+  grid-template-rows: auto auto auto;
+  gap: 7px;
   padding: 16px;
   border: 1px solid var(--line);
   border-radius: 14px;
@@ -186,7 +186,7 @@
 }
 
 .round-card-source {
-  align-self: end;
+  align-self: start;
   display: grid;
   gap: 7px;
   padding: 11px;
@@ -207,6 +207,13 @@
   color: var(--text);
   font-size: 0.78rem;
   line-height: 1.42;
+}
+
+.round-card-source p {
+  display: -webkit-box;
+  overflow: hidden;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 
 .source-group + .source-group {
