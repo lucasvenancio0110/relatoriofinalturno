@@ -53,7 +53,15 @@ jobs:
               t += '''\n\ntest("ajuste sempre pergunta motivo e manutenção só pergunta quando não existe motivo", () => {\n  const chooseStart = appSource.indexOf("async function chooseAdjustment(");\n  const chooseEnd = appSource.indexOf("function createMaintenanceDecision", chooseStart);\n  const chooseBlock = appSource.slice(chooseStart, chooseEnd);\n  assert.match(chooseBlock, /const reason = await askText\\(/);\n  assert.doesNotMatch(chooseBlock, /existingAdjustmentReason\\(state, tnl\\)/);\n\n  const ensureStart = appSource.indexOf("async function ensureExistingCategoryReason");\n  const ensureEnd = appSource.indexOf("async function applyTransition", ensureStart);\n  const ensureBlock = appSource.slice(ensureStart, ensureEnd);\n  assert.match(ensureBlock, /category === "maintenance" \\? existingMaintenanceReason\\(state, tnl\\) : ""/);\n  assert.match(ensureBlock, /category === "maintenance" && existing/);\n});\n'''
           tests.write_text(t, encoding="utf-8")
 
-          # Força o Safari a baixar o bundle desta regra nova.
+          static = Path("tests/static.test.js")
+          s = static.read_text(encoding="utf-8")
+          old_static = '''test("motivos importados são reaproveitados sem nova digitação", () => {\n  const adjustment = app.match(/async function chooseAdjustment[\\s\\S]*?\\n}\\n\\nfunction createMaintenanceDecision/)?.[0] || "";\n  const maintenance = app.match(/async function chooseMaintenance[\\s\\S]*?\\n}\\n\\nconst RELEASE_REVIEW_ORDER/)?.[0] || "";\n  assert.match(adjustment, /savedReason \\|\\|/);\n  assert.match(maintenance, /initial \\|\\|/);\n});'''
+          new_static = '''test("ajuste sempre pede motivo e manutenção reaproveita motivo existente", () => {\n  const adjustment = app.match(/async function chooseAdjustment[\\s\\S]*?\\n}\\n\\nfunction createMaintenanceDecision/)?.[0] || "";\n  const maintenance = app.match(/async function chooseMaintenance[\\s\\S]*?\\n}\\n\\nconst RELEASE_REVIEW_ORDER/)?.[0] || "";\n  assert.match(adjustment, /const reason = await askText\\(/);\n  assert.doesNotMatch(adjustment, /savedReason \\|\\|/);\n  assert.match(maintenance, /initial \\|\\|/);\n});'''
+          if old_static not in s:
+              raise SystemExit("Teste estático antigo de motivos não encontrado")
+          s = s.replace(old_static, new_static, 1)
+          static.write_text(s, encoding="utf-8")
+
           index = Path("index.html")
           html = index.read_text(encoding="utf-8")
           html = re.sub(r'1\\.8\\.3-20260815-1332', '1.8.4-20260815-1336', html)
