@@ -86,9 +86,6 @@ test("relatório mantém listas compactas e separa o detalhamento por máquina",
   const stoppedBlock = report
     .split("*MÁQUINAS EM MANUTENÇÃO PARADA:*")[1]
     .split("*MÁQUINAS EM MANUTENÇÃO PRODUZINDO:*")[0];
-  const monitoringBlock = report
-    .split("*MÁQUINAS EM ACOMPANHAMENTO:*")[1]
-    .split("*DETALHAMENTO DAS MANUTENÇÕES:*")[0];
   const completedBlock = report
     .split("*MANUTENÇÕES CONCLUÍDAS:*")[1]
     .split("*DESENVOLVIMENTO:*")[0];
@@ -98,8 +95,7 @@ test("relatório mantém listas compactas e separa o detalhamento por máquina",
 
   assert.match(stoppedBlock, /TNL 048 - FALHA DE SENSOR/);
   assert.doesNotMatch(stoppedBlock, /Chamado aberto|Como ficou/);
-  assert.match(monitoringBlock, /TNL 025 - AGUARDANDO TÉCNICO/);
-  assert.doesNotMatch(monitoringBlock, /Chamado aberto|Como ficou/);
+  assert.doesNotMatch(report, /\*MÁQUINAS EM ACOMPANHAMENTO:\*/);
   assert.match(completedBlock, /✅ TNL 019 - QUEBRA DE BEDAME/);
   assert.doesNotMatch(completedBlock, /Manutenção atuou|Como ficou/);
 
@@ -110,6 +106,7 @@ test("relatório mantém listas compactas e separa o detalhamento por máquina",
   assert.match(trackingBlock, /\n\n\*TNL 025 - AGUARDANDO TÉCNICO\*/);
   assert.match(trackingBlock, /Chamado aberto pelo 2º turno às 16:10/);
   assert.match(trackingBlock, /Tractian #6661/);
+  assert.match(trackingBlock, /Como ficou: EM ACOMPANHAMENTO/);
   assert.match(trackingBlock, /Acompanhar: Acompanhar medida/);
   assert.match(trackingBlock, /\*TNL 048 - FALHA DE SENSOR\*/);
   assert.match(trackingBlock, /Chamado aberto pelo 1º turno/);
