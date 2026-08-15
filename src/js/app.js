@@ -18,7 +18,6 @@ import {
   maintenanceDecisionDetail,
   maintenanceReason,
   maintenanceRoundDefaults,
-  maintenanceRoundState,
   maintenanceTrackingLines,
   normalizeMaintenanceCase,
   previousShift,
@@ -54,17 +53,10 @@ import {
 import { parseReport, rebuildInfoFromFields } from "./parser.js";
 import { generateReport } from "./report.js";
 import {
-  MACHINE_NEXT_STEPS,
-  ROUTED_SETUP_MODES,
-  applyMachineRoute,
-  buildMachineRoute,
-} from "./transitions.js";
-import {
   cellForTnl,
   cellLabel,
   cleanLine,
   escapeHtml,
-  extractReason,
   nextTurnHeading,
   padTnl,
   sortByTnl,
@@ -606,6 +598,39 @@ function setMaintenanceShift(fieldId, value) {
   });
 }
 
+function currentMaintenanceOrigin() {
+  if (byId("maintenanceInitiationMode").value === "maintenance") return "maintenance";
+  return byId("maintenanceCallOrigin").value;
+}
+
+function setMaintenanceOrigin(value) {
+  const origin = ["previous", "current", "maintenance"].includes(String(value || ""))
+    ? String(value)
+    : "";
+  if (origin === "maintenance") {
+    byId("maintenanceInitiationMode").value = "maintenance";
+    byId("maintenanceCallOrigin").value = "";
+  } else {
+    byId("maintenanceInitiationMode").value = origin ? "production" : "";
+    byId("maintenanceCallOrigin").value = origin;
+  }
+  document.querySelectorAll("[data-maintenance-origin]").forEach((button) => {
+    const selected = button.dataset.maintenanceOrigin === origin;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
+}
+
+function setMaintenanceActed(value) {
+  const acted = ["yes", "no"].includes(String(value || "")) ? String(value) : "";
+  byId("maintenanceActed").value = acted;
+  document.querySelectorAll("[data-maintenance-acted]").forEach((button) => {
+    const selected = button.dataset.maintenanceActed === acted;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", selected ? "true" : "false");
+  });
+}
+
 function renderTimeMode(inputId) {
   const input = byId(inputId);
   const mode = input.dataset.timeMode || "";
@@ -669,48 +694,67 @@ function setTimeMode(inputId, mode, { preserveValue = false, save = true } = {})
 function updateMaintenanceFormVisibility() {
   const dialog = byId("maintenanceDialog");
   const confirmedCompletion = dialog.dataset.confirmedCompletion === "true";
+  const outcomeLocked = dialog.dataset.outcomeLocked === "true";
+  let outcome = byId("maintenanceMachineOutcome").value;
+  if (confirmedCompletion && outcome !== "released") {
+    setMaintenanceChoice("maintenanceMachineOutcome", "released");
+    outcome = "released";
+  }
+  const released = outcome === "released";
+  const stopped = outcome === "stopped";
+  if (released) setMaintenanceActed("yes");
   const arrivalMode = byId("maintenanceArrivedAt").dataset.timeMode || "";
   const releaseMode = byId("maintenanceFinishedAt").dataset.timeMode || "";
-  const roundState = maintenanceRoundState({
-    reportedCompleted: confirmedCompletion,
-    arrivalMode,
-    releaseMode,
-  });
-  const arrivalReady = Boolean(arrivalMode) &&
-    (arrivalMode !== "manual" || Boolean(byId("maintenanceArrivedAt").value));
-  const releaseReady = Boolean(releaseMode) &&
-    (releaseMode !== "manual" || Boolean(byId("maintenanceFinishedAt").value));
+  const acted = byId("maintenanceActed").value;
+  const statusReady = released || stopped;
+  const originReady = ["previous", "current", "maintenance"].includes(
+    currentMaintenanceOrigin(),
+  );
   const tractianReady = Boolean(
     byId("maintenanceTractianCode").value || byId("maintenanceTractianStatus").value,
   );
-  const outcomeReady = ["released", "stopped"].includes(
-    byId("maintenanceMachineOutcome").value,
-  );
+  const arrivalReady =
+    acted === "no" ||
+    (acted === "yes" &&
+      Boolean(arrivalMode) &&
+      arrivalMode !== "not_arrived" &&
+      (arrivalMode !== "manual" || Boolean(byId("maintenanceArrivedAt").value)));
+  const releaseReady =
+    !released ||
+    (Boolean(releaseMode) &&
+      (releaseMode !== "manual" || Boolean(byId("maintenanceFinishedAt").value)));
+  const serviceStatus = released
+    ? "completed"
+    : stopped && acted === "no"
+      ? "waiting"
+      : stopped && acted === "yes" && arrivalReady
+        ? "working"
+        : "";
 
-  setMaintenanceChoice("maintenanceServiceStatus", roundState.serviceStatus);
-  byId("maintenanceNotArrived").hidden = confirmedCompletion;
-  byId("maintenanceStillWorking").hidden = confirmedCompletion;
-  byId("maintenanceFinishedField").hidden = !arrivalReady || !roundState.arrived;
-  byId("maintenanceTractianField").hidden =
-    !arrivalReady || (roundState.arrived && !releaseReady);
-  byId("maintenanceOutcomeStep").hidden =
-    byId("maintenanceTractianField").hidden || !tractianReady;
+  setMaintenanceChoice("maintenanceServiceStatus", serviceStatus);
+  byId("maintenanceOutcomeStep").hidden = outcomeLocked;
+  byId("maintenanceOriginStep").hidden = !statusReady;
+  byId("maintenanceArrivedField").hidden = !(statusReady && originReady && tractianReady);
+  byId("maintenanceActedOptions").hidden = released;
+  byId("maintenanceArrivedTimeOptions").hidden = !(released || acted === "yes");
+  byId("maintenanceFinishedField").hidden = !(released && arrivalReady);
   byId("maintenanceSave").disabled = !(
-    arrivalReady &&
-    (!roundState.arrived || releaseReady) &&
+    statusReady &&
+    originReady &&
     tractianReady &&
-    outcomeReady &&
-    roundState.serviceStatus
+    arrivalReady &&
+    releaseReady &&
+    serviceStatus
   );
-  byId("maintenanceArrivedLabel").textContent = confirmedCompletion
+  byId("maintenanceArrivedLabel").textContent = released
     ? "Que horas a manutenção chegou?"
-    : "A manutenção já chegou a atuar?";
-  byId("maintenanceFinishedLabel").textContent = confirmedCompletion
-    ? "Que horas a manutenção liberou?"
-    : "A manutenção já liberou?";
+    : "A manutenção chegou a atuar?";
+  byId("maintenanceFinishedLabel").textContent = "Que horas liberaram?";
   ["maintenanceTractianStatus", "maintenanceMachineOutcome"].forEach((id) =>
     setMaintenanceChoice(id, byId(id).value),
   );
+  setMaintenanceOrigin(currentMaintenanceOrigin());
+  setMaintenanceActed(byId("maintenanceActed").value);
   ["maintenanceArrivedShift", "maintenanceFinishedShift"].forEach((id) =>
     setMaintenanceShift(id, byId(id).value),
   );
@@ -719,16 +763,26 @@ function updateMaintenanceFormVisibility() {
 
 function readMaintenanceForm(tnl) {
   const tractianCode = byId("maintenanceTractianCode").value.replace(/\D/g, "").slice(0, 12);
-  const roundState = maintenanceRoundState({
-    reportedCompleted: byId("maintenanceDialog").dataset.confirmedCompletion === "true",
-    arrivalMode: byId("maintenanceArrivedAt").dataset.timeMode || "",
-    releaseMode: byId("maintenanceFinishedAt").dataset.timeMode || "",
-  });
+  const outcome = byId("maintenanceMachineOutcome").value;
+  const acted = byId("maintenanceActed").value;
+  const serviceStatus = outcome === "released"
+    ? "completed"
+    : outcome === "stopped" && acted === "no"
+      ? "waiting"
+      : outcome === "stopped" && acted === "yes"
+        ? "working"
+        : "";
   const value = {
     tnl: Number(tnl),
+    initiationMode: byId("maintenanceInitiationMode").value,
+    callOrigin: byId("maintenanceCallOrigin").value,
+    callOpenedAt: byId("maintenanceOpenedAt").value,
+    callOpenedUnknown:
+      byId("maintenanceOpenedUnknown").checked ||
+      (byId("maintenanceCallOrigin").value === "current" && !byId("maintenanceOpenedAt").value),
     tractianCode,
     tractianStatus: tractianCode ? "informed" : byId("maintenanceTractianStatus").value,
-    serviceStatus: roundState.serviceStatus,
+    serviceStatus,
     arrivedShift: Number(byId("maintenanceArrivedShift").value) || null,
     arrivedAt: byId("maintenanceArrivedAt").value,
     arrivedUnknown: byId("maintenanceArrivedUnknown").checked,
@@ -736,7 +790,7 @@ function readMaintenanceForm(tnl) {
     finishedShift: Number(byId("maintenanceFinishedShift").value) || null,
     finishedAt: byId("maintenanceFinishedAt").value,
     finishedUnknown: byId("maintenanceFinishedUnknown").checked,
-    machineOutcome: byId("maintenanceMachineOutcome").value,
+    machineOutcome: outcome,
   };
   if (!["working", "completed"].includes(value.serviceStatus)) {
     value.arrivedShift = null;
@@ -754,6 +808,7 @@ function readMaintenanceForm(tnl) {
 
 function maintenanceDraftUi() {
   return {
+    acted: byId("maintenanceActed").value,
     timeModes: Object.fromEntries(
       Object.keys(MAINTENANCE_TIME_FIELDS).map((id) => [id, byId(id).dataset.timeMode || ""]),
     ),
@@ -825,7 +880,6 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   const key = maintenanceDraftKey(context, tnl);
   const storedDraft = maintenanceDrafts[key];
   const storedValues = storedDraft?.values || {};
-  const route = context.route || storedDraft?.context?.route || null;
   const completionConfirmed =
     typeof context.completionConfirmed === "boolean"
       ? context.completionConfirmed
@@ -876,7 +930,6 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
       tnl: Number(tnl),
       reason: context.reason || maintenanceReason(item),
       producing: Boolean(context.producing),
-      route,
       completionConfirmed,
     },
     values: item,
@@ -886,38 +939,40 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   activeMaintenanceDraftKey = key;
   dialog.dataset.tnl = String(Number(tnl));
   dialog.dataset.draftKey = key;
-  dialog.dataset.confirmedCompletion = String(
-    typeof completionConfirmed === "boolean"
-      ? completionConfirmed
-      : item.reportedCompleted && !item.reviewed,
-  );
+  const reportedCompletion = item.reportedCompleted && !item.reviewed;
+  const forcedReleased = completionConfirmed === true ||
+    (typeof completionConfirmed !== "boolean" && reportedCompletion);
+  const forcedStopped = completionConfirmed === false;
+  const outcomeLocked = forcedReleased || forcedStopped;
+  dialog.dataset.confirmedCompletion = String(forcedReleased);
+  dialog.dataset.outcomeLocked = String(outcomeLocked);
   dialog.dataset.producing = String(Boolean(context.producing));
 
   byId("maintenanceDialogTitle").textContent = `Manutenção — TNL ${padTnl(tnl)}`;
   const received = item.originalLines.length
     ? `<details><summary>Ver informação recebida</summary><p>${lineBreaks(item.originalLines.join("\n"))}</p></details>`
     : "";
-  const routeSummary = route
-    ? `<span>Próximo passo: ${escapeHtml(
-        route.nextStep === MACHINE_NEXT_STEPS.setup
-          ? route.setupMode === ROUTED_SETUP_MODES.start
-            ? "iniciar setup"
-            : "em setup"
-          : "manutenção",
-      )}.</span>`
-    : "";
   const completionSummary =
     completionConfirmed === false
-      ? "<strong>Manutenção ainda não confirmada como concluída.</strong><span>Registre como está o atendimento agora.</span>"
+      ? "<strong>Manutenção ainda não foi concluída.</strong><span>Registre somente a origem, a atuação e o chamado.</span>"
       : completionConfirmed === true
-        ? "<strong>Manutenção confirmada como concluída.</strong><span>Registre os horários, o chamado e como a máquina está.</span>"
+        ? "<strong>Manutenção confirmada como concluída.</strong><span>Registre a origem, os horários e o chamado.</span>"
         : item.reportedCompleted
-          ? "<strong>Já veio marcada como concluída.</strong><span>Registre somente os horários, o chamado e como a máquina está.</span>"
-          : "<strong>Confirme rapidamente a situação na máquina.</strong>";
-  byId("maintenanceSourceSummary").innerHTML = `${completionSummary}${routeSummary}${item.reasons.length ? `<span>Motivo: ${escapeHtml(item.reasons.join(" + "))}</span>` : ""}${received}`;
+          ? "<strong>Já veio marcada como concluída pelo preparador.</strong><span>Registre somente a origem, os horários e o chamado.</span>"
+          : "<strong>Quatro respostas rápidas.</strong><span>Somente o necessário para fechar a ronda.</span>";
+  byId("maintenanceSourceSummary").innerHTML = `${completionSummary}${item.reasons.length ? `<span>Motivo: ${escapeHtml(item.reasons.join(" + "))}</span>` : ""}${received}`;
 
-  setMaintenanceChoice("maintenanceInitiationMode", item.initiationMode);
-  setMaintenanceChoice("maintenanceCallOrigin", item.callOrigin);
+  setMaintenanceChoice(
+    "maintenanceMachineOutcome",
+    forcedReleased
+      ? "released"
+      : forcedStopped
+        ? "stopped"
+        : ["released", "stopped"].includes(item.machineOutcome)
+          ? item.machineOutcome
+          : "",
+  );
+  setMaintenanceOrigin(item.initiationMode === "maintenance" ? "maintenance" : item.callOrigin);
   byId("maintenanceTractianCode").value = item.tractianCode;
   setMaintenanceChoice("maintenanceTractianStatus", item.tractianStatus);
   byId("maintenanceOpenedAt").value = item.callOpenedAt;
@@ -930,7 +985,16 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   setMaintenanceShift("maintenanceFinishedShift", item.finishedShift);
   byId("maintenanceFinishedAt").value = item.finishedAt;
   byId("maintenanceFinishedUnknown").checked = item.finishedUnknown;
-  setMaintenanceChoice("maintenanceMachineOutcome", item.machineOutcome);
+  setMaintenanceActed(
+    storedDraft?.ui?.acted ||
+      (item.serviceStatus === "waiting"
+        ? "no"
+        : ["working", "completed"].includes(item.serviceStatus)
+          ? "yes"
+          : forcedReleased
+            ? "yes"
+            : ""),
+  );
   byId("maintenanceFormError").textContent = "";
   Object.entries(MAINTENANCE_TIME_FIELDS).forEach(([inputId, config]) => {
     let fallbackMode = byId(config.unknown).checked
@@ -954,9 +1018,26 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   dialog.scrollTop = Number(storedDraft?.scrollTop || 0);
   persistMaintenanceDraft();
   setTimeout(() => {
-    const firstAnswer = form.querySelector(
-      '[data-time-mode-target="maintenanceArrivedAt"].selected, [data-time-mode-target="maintenanceArrivedAt"]',
-    );
+    const outcome = byId("maintenanceMachineOutcome").value;
+    const origin = currentMaintenanceOrigin();
+    const tractianReady = byId("maintenanceTractianCode").value || byId("maintenanceTractianStatus").value;
+    const arrivalMode = byId("maintenanceArrivedAt").dataset.timeMode || "";
+    const releaseMode = byId("maintenanceFinishedAt").dataset.timeMode || "";
+    const firstAnswer =
+      (!outcomeLocked && !outcome
+        ? form.querySelector('[data-maintenance-choice="maintenanceMachineOutcome"]')
+        : !origin
+          ? form.querySelector("[data-maintenance-origin]")
+          : !tractianReady
+            ? byId("maintenanceTractianCode")
+            : outcome === "stopped" && !byId("maintenanceActed").value
+              ? form.querySelector("[data-maintenance-acted]")
+              : byId("maintenanceActed").value === "yes" &&
+                  (!arrivalMode || arrivalMode === "not_arrived")
+                ? form.querySelector('[data-time-mode-target="maintenanceArrivedAt"]')
+                : outcome === "released" && !releaseMode
+                  ? form.querySelector('[data-time-mode-target="maintenanceFinishedAt"]')
+                  : null);
     (firstAnswer || byId("maintenanceSave")).focus();
   }, 80);
 
@@ -991,6 +1072,7 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
 }
 
 function detailForTnl(tnl, fallback) {
+  const maintenanceItem = maintenanceCaseOf(state, tnl);
   const lines = [
     ...recordsOfTnl(state, tnl).map((item) => item.displayText),
     ...state.futureItems
@@ -999,6 +1081,9 @@ function detailForTnl(tnl, fallback) {
     ...state.devObsItems
       .filter((item) => Number(item.tnl) === Number(tnl) && !["removed", "resolved"].includes(item.status))
       .map((item) => item.displayText),
+    ...(maintenanceItem?.reviewed
+      ? maintenanceTrackingLines(maintenanceItem, readFields().currentShift)
+      : []),
   ];
   return uniqueStrings(lines).join(" | ") || fallback;
 }
@@ -1086,7 +1171,16 @@ function addOutcomeFuture(tnl, mode, emoji = "🔴") {
   state.futureItems = sortByTnl(state.futureItems);
 }
 
-async function applyTransition({ subjectKey, tnl, target, applyTarget, action, before }) {
+async function applyTransition({
+  subjectKey,
+  tnl,
+  target,
+  applyTarget,
+  action,
+  before,
+  detail = "",
+  kind = subjectKey.startsWith("A:") ? "machine" : "information",
+}) {
   const other = categoriesOfTnl(state, tnl).filter((category) => category !== target);
   let convertMaintenance = null;
   for (const category of other) {
@@ -1148,13 +1242,20 @@ async function applyTransition({ subjectKey, tnl, target, applyTarget, action, b
     if (residual === "maintenance_only") convertMaintenance = "only";
   }
 
-  applyTarget();
+  const targetResult = applyTarget();
   if (convertMaintenance) {
     const emoji = setupEmoji(tnl);
     removeCategory(state, tnl, "setup");
     addOutcomeFuture(tnl, convertMaintenance, emoji);
   }
-  commitAndRefresh({ subjectKey, tnl, kind: subjectKey.startsWith("A:") ? "machine" : "information", action, before });
+  commitAndRefresh({
+    subjectKey,
+    tnl,
+    kind,
+    action,
+    before,
+    detail: typeof detail === "function" ? detail(targetResult) : detail,
+  });
   return true;
 }
 
@@ -1210,11 +1311,12 @@ async function chooseAdjustment(
   beforeApply = () => {},
 ) {
   const savedReason = state.reasons.adjustment[String(tnl)] || "";
-  const reason = await askText({
-    title: `Motivo do ajuste — TNL ${padTnl(tnl)}`,
-    subtitle: "Informe o motivo do ajuste.",
-    initial: savedReason,
-  });
+  const reason = savedReason ||
+    (await askText({
+      title: `Motivo do ajuste — TNL ${padTnl(tnl)}`,
+      subtitle: "Informe o motivo do ajuste.",
+      initial: "",
+    }));
   if (!reason) return;
   await applyTransition({
     subjectKey,
@@ -1236,7 +1338,6 @@ async function finishMaintenanceDecision({
   producing = false,
   before = snapshotSubject(state, subjectKey),
   beforeApply = () => {},
-  route = buildMachineRoute(state, tnl),
   completionConfirmed,
 }) {
   const existing = maintenanceCaseOf(state, tnl) || {};
@@ -1261,64 +1362,48 @@ async function finishMaintenanceDecision({
     tnl: Number(tnl),
     reason,
     producing,
-    route,
     completionConfirmed,
   };
   const tracking = await showMaintenanceForm(tnl, seed, context);
   if (!tracking) return false;
 
-  beforeApply();
-  ensureMaintenanceCase(state, {
-    tnl,
-    reason,
-    sourceSection: producing ? "maintenance_prod" : "maintenance",
-    originalLine: reason ? `TNL ${padTnl(tnl)} - ${reason}` : "",
-    reportedCompleted: seed.reportedCompleted,
-  });
-  const callOpenedShift =
-    tracking.callOrigin === "current"
-      ? Number(readFields().currentShift)
-      : tracking.callOrigin === "previous"
-        ? previousShift(readFields().currentShift)
-        : null;
-  updateMaintenanceCase(state, tnl, { ...tracking, callOpenedShift });
-  removeRecordsOfTnl(state, tnl);
-  removeCompleted(state, tnl, "maintenance");
-
-  const activeService = ["waiting", "working"].includes(tracking.serviceStatus);
-  if (activeService) {
-    setMaintenance(
-      tnl,
-      maintenanceReason(seed),
-      tracking.machineOutcome === "released",
-    );
-  } else if (tracking.machineOutcome === "stopped") {
-    setMaintenance(tnl, maintenanceReason(seed), false);
-  } else if (tracking.machineOutcome === "released") {
-    addCompleted(state, tnl, "maintenance");
-  }
-  const appliedRoute = applyMachineRoute(state, tnl, route);
-
-  const finalCase = maintenanceCaseOf(state, tnl);
-  clearMaintenanceDraft(maintenanceDraftKey(context, tnl));
-  commitAndRefresh({
+  let finalCase = null;
+  const applied = await applyTransition({
     subjectKey,
     tnl,
-    kind: subjectKey.startsWith("A:") ? "machine" : "information",
-    action:
-      appliedRoute.nextStep === MACHINE_NEXT_STEPS.setup
-        ? `${appliedRoute.action} · MANUTENÇÃO — ${MACHINE_OUTCOMES[tracking.machineOutcome]}`
-        : `MANUTENÇÃO — ${MACHINE_OUTCOMES[tracking.machineOutcome]}`,
-    detail: `${
-      appliedRoute.nextStep === MACHINE_NEXT_STEPS.setup
-        ? `Próximo passo da máquina: ${appliedRoute.action}.\n`
-        : appliedRoute.setupWasPresent
-          ? "Setup concluído antes da manutenção.\n"
-          : ""
-    }${maintenanceDecisionDetail(finalCase, readFields().currentShift)}`,
+    target: "maintenance",
     before,
+    applyTarget: () => {
+      beforeApply();
+      ensureMaintenanceCase(state, {
+        tnl,
+        reason,
+        sourceSection: producing ? "maintenance_prod" : "maintenance",
+        originalLine: reason ? `TNL ${padTnl(tnl)} - ${reason}` : "",
+        reportedCompleted: seed.reportedCompleted,
+      });
+      const callOpenedShift =
+        tracking.callOrigin === "current"
+          ? Number(readFields().currentShift)
+          : tracking.callOrigin === "previous"
+            ? previousShift(readFields().currentShift)
+            : null;
+      updateMaintenanceCase(state, tnl, { ...tracking, callOpenedShift });
+      removeCategory(state, tnl, "maintenance");
+      removeCompleted(state, tnl, "maintenance");
+      if (["waiting", "working"].includes(tracking.serviceStatus)) {
+        setMaintenance(tnl, maintenanceReason(seed), false);
+      } else if (tracking.machineOutcome === "released") {
+        addCompleted(state, tnl, "maintenance");
+      }
+      finalCase = maintenanceCaseOf(state, tnl);
+      return finalCase;
+    },
+    action: `MANUTENÇÃO — ${MACHINE_OUTCOMES[tracking.machineOutcome]}`,
+    detail: () => maintenanceDecisionDetail(finalCase, readFields().currentShift),
   });
-  return true;
+  if (applied) clearMaintenanceDraft(maintenanceDraftKey(context, tnl));
+  return applied;
 }
 
 async function resumePendingMaintenanceDraft() {
@@ -1350,7 +1435,6 @@ async function resumePendingMaintenanceDraft() {
       producing: Boolean(context.producing),
       before: snapshotSubject(state, context.subjectKey || `A:${tnl}`),
       beforeApply,
-      route: context.route || buildMachineRoute(state, tnl),
       completionConfirmed:
         typeof context.completionConfirmed === "boolean"
           ? context.completionConfirmed
@@ -1374,11 +1458,11 @@ async function chooseMaintenance(
     (state.reasons.maintenance[String(tnl)] || []).join(" + ") ||
     maintenanceReason(maintenanceCaseOf(state, tnl) || {}, "");
   const reason =
-    providedReason ||
+    initial ||
     (await askText({
       title: `Motivo da manutenção — TNL ${padTnl(tnl)}`,
       subtitle: "Informe o motivo da manutenção.",
-      initial,
+      initial: "",
     }));
   if (!reason) return false;
   return finishMaintenanceDecision({
@@ -1391,111 +1475,32 @@ async function chooseMaintenance(
   });
 }
 
-async function chooseSetupThenMaintenance({
-  subjectKey,
-  tnl,
-  reason,
-  producing = false,
-  before = snapshotSubject(state, subjectKey),
-}) {
-  const setupMode = await showChoice({
-    title: `TNL ${padTnl(tnl)} — SETUP`,
-    subtitle: "Como a máquina vai entrar no setup?",
-    actions: [
-      { value: ROUTED_SETUP_MODES.active, label: "EM SETUP", tone: "setup" },
-      { value: ROUTED_SETUP_MODES.start, label: "INICIAR SETUP", tone: "setup" },
-    ],
-  });
-  if (!setupMode) return false;
-
-  const maintenanceCompleted = await showChoice({
-    title: `TNL ${padTnl(tnl)} — MANUTENÇÃO`,
-    subtitle: "A manutenção foi concluída? Depois desta resposta, abre o atendimento do chamado.",
-    actions: [
-      { value: "yes", label: "SIM", tone: "success" },
-      { value: "no", label: "NÃO", tone: "danger" },
-    ],
-  });
-  if (!maintenanceCompleted) return false;
-
-  return finishMaintenanceDecision({
-    subjectKey,
-    tnl,
-    reason,
-    producing,
-    before,
-    route: buildMachineRoute(state, tnl, {
-      nextStep: MACHINE_NEXT_STEPS.setup,
-      setupMode,
-    }),
-    completionConfirmed: maintenanceCompleted === "yes",
-  });
-}
-
 async function openMachine(tnl) {
   const subjectKey = `A:${Number(tnl)}`;
   const records = recordsOfTnl(state, tnl);
   const conflict = hasConflict(state, tnl) && !state.resolvedConflicts[String(tnl)];
-  const maintenanceItem = maintenanceCaseOf(state, tnl);
-  const maintenanceRelated = categoriesOfTnl(state, tnl).includes("maintenance");
   const choice = await showChoice({
     title: `TNL ${padTnl(tnl)}${conflict ? " · CONFLITO" : ""}`,
-    subtitle: maintenanceRelated
-      ? "Primeiro, escolha o próximo passo da máquina. O atendimento vem depois e não será perdido."
-      : conflict
-        ? `A máquina consta em ${categoriesOfTnl(state, tnl).map(categoryLabel).join(" × ")}. Confirme o status correto.`
-        : "Escolha a decisão para essa máquina.",
+    subtitle: conflict
+      ? `A máquina consta em ${categoriesOfTnl(state, tnl).map(categoryLabel).join(" × ")}. Confirme o status correto.`
+      : "Escolha a decisão para essa máquina.",
     source: `<div class="modal-source">${sourceBlocks(records)}</div>`,
-    actions: maintenanceRelated
-      ? [
-          {
-            value: "maintenance_path",
-            label: "VAI PASSAR EM MANUTENÇÃO",
-            tone: "danger",
-          },
-          { value: "setup_path", label: "VAI PASSAR EM SETUP", tone: "setup" },
-          { value: "remove", label: "REMOVER DO RELATÓRIO", tone: "neutral" },
-        ]
-      : [
-          { value: "adjustment", label: "VAI PASSAR EM AJUSTE", tone: "warning" },
-          { value: "setup", label: "VAI PASSAR EM SETUP", tone: "setup" },
-          { value: "maintenance", label: "VAI PASSAR EM MANUTENÇÃO", tone: "danger" },
-          { value: "release", label: "LIBERADA", tone: "success" },
-          { value: "remove", label: "REMOVER DO RELATÓRIO", tone: "neutral" },
-        ],
+    actions: [
+      { value: "adjustment", label: "VAI PASSAR EM AJUSTE", tone: "warning" },
+      { value: "setup", label: "VAI PASSAR EM SETUP", tone: "setup" },
+      { value: "maintenance", label: "VAI PASSAR EM MANUTENÇÃO", tone: "danger" },
+      { value: "release", label: "LIBERADA", tone: "success" },
+      { value: "remove", label: "REMOVER DO RELATÓRIO", tone: "neutral" },
+    ],
   });
   if (!choice) return;
   const before = snapshotSubject(state, subjectKey);
-  if (["maintenance_path", "setup_path"].includes(choice)) {
-    const fallbackReason =
-      (state.reasons.maintenance[String(tnl)] || []).join(" + ") ||
-      records.map((record) => extractReason(record.rawText || record.displayText)).find(Boolean) ||
-      "MANUTENÇÃO";
-    const reason = maintenanceReason(maintenanceItem, fallbackReason);
-    const producing = records.some((record) => record.type === "maintenance_prod");
-    if (choice === "setup_path") {
-      return chooseSetupThenMaintenance({
-        subjectKey,
-        tnl,
-        reason,
-        producing,
-        before,
-      });
-    }
-    return finishMaintenanceDecision({
-      subjectKey,
-      tnl,
-      reason,
-      producing,
-      before,
-      route: buildMachineRoute(state, tnl, {
-        nextStep: MACHINE_NEXT_STEPS.maintenance,
-      }),
-    });
-  }
   if (choice === "adjustment") return chooseAdjustment(subjectKey, tnl, before);
   if (choice === "setup") return chooseSetup(subjectKey, tnl, before);
-  if (choice === "maintenance") return chooseMaintenance(subjectKey, tnl, false, before);
+  if (choice === "maintenance") {
+    const producing = records.some((record) => record.type === "maintenance_prod");
+    return chooseMaintenance(subjectKey, tnl, producing, before);
+  }
   if (choice === "release") {
     categoriesOfTnl(state, tnl).forEach((category) => addCompleted(state, tnl, category));
     removeRecordsOfTnl(state, tnl);
@@ -1527,9 +1532,7 @@ async function openFuture(id) {
     source: `<div class="modal-source"><p>${lineBreaks(item.rawText || item.displayText)}</p></div>`,
     actions: [
       { value: "keep", label: `MANTER PARA ${item.heading.replace("SETUPS ", "")}`, tone: "setup" },
-      { value: "active", label: "EM SETUP", tone: "setup" },
-      { value: "start", label: "INICIAR SETUP", tone: "setup" },
-      { value: "after", label: "APÓS MANUTENÇÃO", tone: "warning" },
+      { value: "setup", label: "VAI PASSAR EM SETUP", tone: "setup" },
       { value: "remove", label: "REMOVER DO RELATÓRIO", tone: "neutral" },
     ],
   });
@@ -1541,19 +1544,38 @@ async function openFuture(id) {
     commitAndRefresh({ subjectKey, tnl: item.tnl, kind: "future", action: `MANTER ${item.heading.replace("SETUPS ", "")}`, before });
     return;
   }
-  if (["active", "start"].includes(choice)) {
-    item.status = "removed";
-    item.reviewed = true;
-    setSetup(item.tnl, choice, item.emoji);
-    commitAndRefresh({ subjectKey, tnl: item.tnl, kind: "future", action: choice === "start" ? "INICIAR SETUP" : "VAI PASSAR EM SETUP", before });
-    return;
-  }
-  if (choice === "after") {
-    item.displayText = `${item.emoji || "🔴"} TNL ${padTnl(item.tnl)} - Após manutenção`;
-    item.rawText = item.displayText;
-    item.reviewed = true;
-    item.status = "kept";
-    commitAndRefresh({ subjectKey, tnl: item.tnl, kind: "future", action: "APÓS MANUTENÇÃO", before });
+  if (choice === "setup") {
+    const setupMode = await showChoice({
+      title: `TNL ${padTnl(item.tnl)} — SETUP`,
+      subtitle: "O setup futuro iniciou ou mudou de condição?",
+      actions: [
+        { value: "active", label: "EM SETUP", tone: "setup" },
+        { value: "start", label: "INICIAR SETUP", tone: "setup" },
+        { value: "after", label: "APÓS MANUTENÇÃO", tone: "warning" },
+      ],
+    });
+    if (!setupMode) return;
+    if (setupMode === "after") {
+      item.displayText = `${item.emoji || "🔴"} TNL ${padTnl(item.tnl)} - Após manutenção`;
+      item.rawText = item.displayText;
+      item.reviewed = true;
+      item.status = "kept";
+      commitAndRefresh({ subjectKey, tnl: item.tnl, kind: "future", action: "APÓS MANUTENÇÃO", before });
+      return;
+    }
+    await applyTransition({
+      subjectKey,
+      tnl: item.tnl,
+      target: "setup",
+      before,
+      kind: "future",
+      applyTarget: () => {
+        item.status = "removed";
+        item.reviewed = true;
+        setSetup(item.tnl, setupMode, item.emoji);
+      },
+      action: setupMode === "start" ? "INICIAR SETUP" : "VAI PASSAR EM SETUP",
+    });
     return;
   }
   item.status = "removed";
@@ -1916,9 +1938,40 @@ function bindEvents() {
     if (choice) {
       const fieldId = choice.dataset.maintenanceChoice;
       const value = choice.dataset.value;
+      const previous = byId(fieldId).value;
       setMaintenanceChoice(fieldId, value);
       if (fieldId === "maintenanceTractianStatus") {
         byId("maintenanceTractianCode").value = "";
+      }
+      if (fieldId === "maintenanceMachineOutcome" && previous !== value) {
+        setMaintenanceActed(value === "released" ? "yes" : "");
+        setTimeMode("maintenanceArrivedAt", "", { save: false });
+        setTimeMode("maintenanceFinishedAt", "", { save: false });
+      }
+      updateMaintenanceFormVisibility();
+      byId("maintenanceFormError").textContent = "";
+      queueMaintenanceDraftSave();
+      return;
+    }
+    const origin = event.target.closest("[data-maintenance-origin]");
+    if (origin) {
+      setMaintenanceOrigin(origin.dataset.maintenanceOrigin);
+      byId("maintenanceOpenedUnknown").checked =
+        origin.dataset.maintenanceOrigin === "current" && !byId("maintenanceOpenedAt").value;
+      updateMaintenanceFormVisibility();
+      byId("maintenanceFormError").textContent = "";
+      queueMaintenanceDraftSave();
+      return;
+    }
+    const acted = event.target.closest("[data-maintenance-acted]");
+    if (acted) {
+      const value = acted.dataset.maintenanceActed;
+      setMaintenanceActed(value);
+      if (value === "no") {
+        setTimeMode("maintenanceArrivedAt", "not_arrived", { save: false });
+        setTimeMode("maintenanceFinishedAt", "", { save: false });
+      } else if (byId("maintenanceArrivedAt").dataset.timeMode === "not_arrived") {
+        setTimeMode("maintenanceArrivedAt", "", { save: false });
       }
       updateMaintenanceFormVisibility();
       byId("maintenanceFormError").textContent = "";
@@ -1929,10 +1982,8 @@ function bindEvents() {
     if (timeMode) {
       const inputId = timeMode.dataset.timeModeTarget;
       const mode = timeMode.dataset.timeMode;
+      if (inputId === "maintenanceArrivedAt") setMaintenanceActed("yes");
       setTimeMode(inputId, mode);
-      if (inputId === "maintenanceArrivedAt" && mode === "not_arrived") {
-        setTimeMode("maintenanceFinishedAt", "", { save: false });
-      }
       updateMaintenanceFormVisibility();
       if (mode === "manual") {
         const input = byId(inputId);
@@ -1961,6 +2012,7 @@ function bindEvents() {
       updateMaintenanceFormVisibility();
     }
     if (MAINTENANCE_TIME_FIELDS[target.id]) {
+      if (target.id === "maintenanceArrivedAt") setMaintenanceActed("yes");
       target.dataset.timeMode = "manual";
       byId(MAINTENANCE_TIME_FIELDS[target.id].unknown).checked = false;
       const shiftStartId = MAINTENANCE_TIME_FIELDS[target.id].shiftStart;

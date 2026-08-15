@@ -233,22 +233,66 @@
           <input id="maintenanceServiceStatus" type="hidden" />
           <input id="maintenanceArrivedShift" type="hidden" />
           <input id="maintenanceFinishedShift" type="hidden" />
+          <input id="maintenanceActed" type="hidden" />
         </div>
 
         <div class="maintenance-flow">
-          <section class="maintenance-step" id="maintenanceArrivedField" aria-labelledby="maintenanceArrivedLabel">
+          <section class="maintenance-step maintenance-status-step" id="maintenanceOutcomeStep" aria-labelledby="maintenanceOutcomeQuestion">
             <div class="step-content">
-              <h3 id="maintenanceArrivedLabel">A manutenção já chegou a atuar?</h3>
-              <div class="time-mode-options quick-answer-grid">
-                <button id="maintenanceNotArrived" type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="not_arrived">AINDA NÃO CHEGOU</button>
-                <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="shift_start">JÁ ESTAVA NO INÍCIO DO TURNO</button>
-                <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="now">CHEGOU AGORA</button>
-                <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="manual">INFORMAR HORÁRIO</button>
-                <button class="wide-choice" type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="unknown">JÁ VEIO · NÃO SEI A HORA</button>
+              <p class="step-kicker">1 · SITUAÇÃO</p>
+              <h3 id="maintenanceOutcomeQuestion">Como a máquina vai passar?</h3>
+              <input id="maintenanceMachineOutcome" type="hidden" />
+              <div class="express-options express-options-two outcome-options">
+                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="stopped">EM MANUTENÇÃO</button>
+                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="released">LIBERADA</button>
               </div>
-              <div class="manual-time" data-manual-time="maintenanceArrivedAt" hidden>
-                <label for="maintenanceArrivedAt">Horário em que chegou</label>
-                <input class="input" id="maintenanceArrivedAt" type="time" step="60" />
+            </div>
+          </section>
+
+          <section class="maintenance-step maintenance-origin-step" id="maintenanceOriginStep" aria-labelledby="maintenanceOriginQuestion" hidden>
+            <div class="step-content">
+              <p class="step-kicker">2 · ORIGEM E CHAMADO</p>
+              <h3 id="maintenanceOriginQuestion">Quando começou a parada?</h3>
+              <div class="express-options express-options-two origin-options">
+                <button type="button" data-maintenance-origin="previous">VEIO DO TURNO ANTERIOR</button>
+                <button type="button" data-maintenance-origin="current">ABRIMOS NO NOSSO TURNO</button>
+                <button class="wide-choice" type="button" data-maintenance-origin="maintenance">MANUTENÇÃO INICIOU DIRETO</button>
+              </div>
+              <div class="tractian-inline" id="maintenanceTractianField">
+                <label id="maintenanceTractianLabel" for="maintenanceTractianCode">Chamado Tractian</label>
+                <div class="tractian-entry">
+                  <span aria-hidden="true">#</span>
+                  <input id="maintenanceTractianCode" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="6661" maxlength="12" aria-label="Código do chamado no Tractian" />
+                </div>
+                <input id="maintenanceTractianStatus" type="hidden" />
+                <div class="express-options express-options-two compact-options">
+                  <button type="button" data-maintenance-choice="maintenanceTractianStatus" data-value="none">NÃO TEM CHAMADO</button>
+                  <button type="button" data-maintenance-choice="maintenanceTractianStatus" data-value="not_found">NÃO LOCALIZEI</button>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section class="maintenance-step" id="maintenanceArrivedField" aria-labelledby="maintenanceArrivedLabel" hidden>
+            <div class="step-content">
+              <p class="step-kicker">3 · ATUAÇÃO</p>
+              <h3 id="maintenanceArrivedLabel">A manutenção chegou a atuar?</h3>
+              <div class="express-options express-options-two" id="maintenanceActedOptions">
+                <button type="button" data-maintenance-acted="no">AINDA NÃO CHEGOU</button>
+                <button type="button" data-maintenance-acted="yes">SIM, JÁ ATUOU</button>
+              </div>
+              <div id="maintenanceArrivedTimeOptions" hidden>
+                <p class="step-question">Que horas chegaram?</p>
+                <div class="time-mode-options quick-answer-grid">
+                  <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="shift_start">INÍCIO DO TURNO</button>
+                  <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="now">AGORA</button>
+                  <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="manual">INFORMAR HORA</button>
+                  <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="unknown">NÃO SEI A HORA</button>
+                </div>
+                <div class="manual-time" data-manual-time="maintenanceArrivedAt" hidden>
+                  <label for="maintenanceArrivedAt">Horário em que chegou</label>
+                  <input class="input" id="maintenanceArrivedAt" type="time" step="60" />
+                </div>
               </div>
               <input id="maintenanceArrivedUnknown" type="checkbox" hidden />
               <input id="maintenanceArrivedAtShiftStart" type="checkbox" hidden />
@@ -257,44 +301,18 @@
 
           <section class="maintenance-step" id="maintenanceFinishedField" aria-labelledby="maintenanceFinishedLabel" hidden>
             <div class="step-content">
-              <h3 id="maintenanceFinishedLabel">A manutenção já liberou?</h3>
+              <p class="step-kicker">4 · LIBERAÇÃO</p>
+              <h3 id="maintenanceFinishedLabel">Que horas liberaram?</h3>
               <div class="time-mode-options quick-answer-grid">
-                <button id="maintenanceStillWorking" type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="working">AINDA ESTÁ EM MANUTENÇÃO</button>
-                <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="now">LIBEROU AGORA</button>
-                <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="manual">INFORMAR HORÁRIO</button>
-                <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="unknown">LIBEROU · NÃO SEI A HORA</button>
+                <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="now">AGORA</button>
+                <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="manual">INFORMAR HORA</button>
+                <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="unknown">NÃO SEI A HORA</button>
               </div>
               <div class="manual-time" data-manual-time="maintenanceFinishedAt" hidden>
                 <label for="maintenanceFinishedAt">Horário em que liberou</label>
                 <input class="input" id="maintenanceFinishedAt" type="time" step="60" />
               </div>
               <input id="maintenanceFinishedUnknown" type="checkbox" hidden />
-            </div>
-          </section>
-
-          <section class="maintenance-step tractian-panel" id="maintenanceTractianField" aria-labelledby="maintenanceTractianLabel" hidden>
-            <div class="step-content">
-              <h3 id="maintenanceTractianLabel">Qual é o chamado no Tractian?</h3>
-              <div class="tractian-entry">
-                <span aria-hidden="true">#</span>
-                <input id="maintenanceTractianCode" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="6661" maxlength="12" aria-label="Código do chamado no Tractian" />
-              </div>
-              <input id="maintenanceTractianStatus" type="hidden" />
-              <div class="express-options express-options-two compact-options">
-                <button type="button" data-maintenance-choice="maintenanceTractianStatus" data-value="none">NÃO TEM CHAMADO</button>
-                <button type="button" data-maintenance-choice="maintenanceTractianStatus" data-value="not_found">NÃO LOCALIZEI</button>
-              </div>
-            </div>
-          </section>
-
-          <section class="maintenance-step" id="maintenanceOutcomeStep" aria-labelledby="maintenanceOutcomeQuestion" hidden>
-            <div class="step-content">
-              <h3 id="maintenanceOutcomeQuestion">Como a máquina está agora?</h3>
-              <input id="maintenanceMachineOutcome" type="hidden" />
-              <div class="express-options express-options-two outcome-options">
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="released">LIBERADA / PRODUZINDO</button>
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="stopped">PARADA</button>
-              </div>
             </div>
           </section>
         </div>

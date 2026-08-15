@@ -529,8 +529,38 @@ summary:focus-visible,
   display: block;
   padding: 14px;
   border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
   border-radius: 16px;
   background: color-mix(in srgb, var(--surface-soft) 78%, transparent);
+}
+
+#maintenanceOutcomeStep {
+  border-left-color: var(--danger);
+}
+
+#maintenanceOriginStep {
+  border-left-color: var(--info);
+}
+
+#maintenanceArrivedField {
+  border-left-color: var(--warning);
+}
+
+#maintenanceFinishedField {
+  border-left-color: var(--success);
+}
+
+.step-kicker {
+  color: var(--muted);
+  font-size: 0.66rem;
+  font-weight: 950;
+  letter-spacing: 0.12em;
+}
+
+.step-question {
+  color: var(--text);
+  font-size: 0.8rem;
+  font-weight: 900;
 }
 
 .step-number {
@@ -633,6 +663,18 @@ summary:focus-visible,
   box-shadow: inset 0 0 0 1px var(--setup);
 }
 
+.express-options button[data-maintenance-acted="no"].selected {
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 28%, var(--surface-strong));
+  box-shadow: inset 0 0 0 1px var(--danger);
+}
+
+.express-options button[data-maintenance-acted="yes"].selected {
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 28%, var(--surface-strong));
+  box-shadow: inset 0 0 0 1px var(--success);
+}
+
 .wide-choice {
   grid-column: 1 / -1;
 }
@@ -654,6 +696,18 @@ summary:focus-visible,
 .tractian-panel small {
   color: var(--muted);
   font-size: 0.68rem;
+}
+
+.tractian-inline {
+  display: grid;
+  gap: 8px;
+  padding-top: 3px;
+}
+
+.tractian-inline > label {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 900;
 }
 
 .tractian-entry {

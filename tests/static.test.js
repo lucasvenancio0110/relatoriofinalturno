@@ -21,7 +21,7 @@ test("viewport permite zoom e diálogos possuem semântica nativa", () => {
   assert.match(html, /id="maintenanceCallOrigin"/);
   assert.match(html, /id="maintenanceServiceStatus"/);
   assert.match(html, /id="maintenanceMachineOutcome"/);
-  ["LIBERADA \/ PRODUZINDO", "PARADA"].forEach(
+  ["EM MANUTENÇÃO", "LIBERADA"].forEach(
     (option) => assert.ok(html.includes(option), `Resultado ausente: ${option}`),
   );
 });
@@ -29,11 +29,13 @@ test("viewport permite zoom e diálogos possuem semântica nativa", () => {
 test("ronda rápida usa no máximo quatro blocos progressivos", () => {
   assert.doesNotMatch(html, /<select[^>]+id="maintenance(?:CallOrigin|ServiceStatus|MachineOutcome)"/i);
   assert.match(html, /id="maintenanceTractianCode"[^>]+inputmode="numeric"/);
+  assert.match(maintenanceHtml, /VEIO DO TURNO ANTERIOR/);
+  assert.match(maintenanceHtml, /ABRIMOS NO NOSSO TURNO/);
+  assert.match(maintenanceHtml, /MANUTENÇÃO INICIOU DIRETO/);
   assert.match(maintenanceHtml, /AINDA NÃO CHEGOU/);
-  assert.match(maintenanceHtml, /JÁ ESTAVA NO INÍCIO DO TURNO/);
-  assert.match(maintenanceHtml, /CHEGOU AGORA/);
-  assert.match(maintenanceHtml, /AINDA ESTÁ EM MANUTENÇÃO/);
-  assert.match(maintenanceHtml, /LIBEROU AGORA/);
+  assert.match(maintenanceHtml, /SIM, JÁ ATUOU/);
+  assert.match(maintenanceHtml, /INÍCIO DO TURNO/);
+  assert.match(maintenanceHtml, /Que horas liberaram/);
   assert.match(html, /data-time-mode="manual"/);
   assert.match(html, /data-time-mode="unknown"/);
   assert.match(html, /Rascunho salvo automaticamente/i);
@@ -48,27 +50,50 @@ test("rascunho da manutenção integra sessão, ocultação e fechamento da pág
   assert.match(app, /visibilitychange/);
   assert.match(app, /pagehide/);
   assert.match(app, /resumePendingMaintenanceDraft/);
-  assert.match(app, /context\.route/);
+  assert.match(app, /acted: byId\("maintenanceActed"\)\.value/);
+  assert.match(app, /setMaintenanceOrigin/);
   assert.match(app, /context\.completionConfirmed/);
 });
 
-test("máquina em manutenção começa pelo destino e só depois abre o atendimento", () => {
-  assert.match(app, /value: "maintenance_path"/);
-  assert.match(app, /value: "setup_path"/);
-  assert.match(app, /VAI PASSAR EM MANUTENÇÃO/);
-  assert.match(app, /VAI PASSAR EM SETUP/);
-  const flow = app.match(/async function chooseSetupThenMaintenance[\s\S]*?\n}\n\nasync function openMachine/)?.[0] || "";
-  assert.match(flow, /Como a máquina vai entrar no setup/);
-  assert.match(flow, /A manutenção foi concluída/);
-  assert.match(flow, /completionConfirmed: maintenanceCompleted === "yes"/);
-  assert.ok(flow.indexOf("setupMode = await showChoice") < flow.indexOf("maintenanceCompleted = await showChoice"));
-  assert.ok(flow.indexOf("maintenanceCompleted = await showChoice") < flow.indexOf("finishMaintenanceDecision"));
+test("toda máquina preserva as cinco decisões do passagemdeturno", () => {
+  const flow = app.match(/async function openMachine[\s\S]*?\n}\n\nasync function openFuture/)?.[0] || "";
+  [
+    'value: "adjustment"',
+    'value: "setup"',
+    'value: "maintenance"',
+    'value: "release"',
+    'value: "remove"',
+  ].forEach((option) => assert.match(flow, new RegExp(option)));
+  assert.doesNotMatch(flow, /maintenanceRelated|maintenance_path|setup_path/);
 });
 
-test("roteamento é aplicado somente depois de salvar o atendimento", () => {
+test("manutenção usa o formulário rápido sem apagar setup ou ajuste em bloco", () => {
   const finish = app.match(/async function finishMaintenanceDecision[\s\S]*?\n}\n\nasync function resumePendingMaintenanceDraft/)?.[0] || "";
   assert.match(finish, /const tracking = await showMaintenanceForm/);
   assert.match(finish, /if \(!tracking\) return false/);
-  assert.match(finish, /const appliedRoute = applyMachineRoute/);
-  assert.ok(finish.indexOf("if (!tracking) return false") < finish.indexOf("applyMachineRoute"));
+  assert.match(finish, /target: "maintenance"/);
+  assert.match(finish, /updateMaintenanceCase/);
+  assert.match(finish, /removeCategory\(state, tnl, "maintenance"\)/);
+  assert.doesNotMatch(finish, /removeRecordsOfTnl|applyMachineRoute/);
+  assert.ok(finish.indexOf("showMaintenanceForm") < finish.indexOf("applyTransition"));
+});
+
+test("setup futuro mantém a decisão em duas etapas e resolve conflitos", () => {
+  const flow = app.match(/async function openFuture[\s\S]*?\n}\n\nasync function openDevObs/)?.[0] || "";
+  assert.match(flow, /value: "keep"/);
+  assert.match(flow, /value: "setup"/);
+  assert.match(flow, /value: "remove"/);
+  assert.match(flow, /O setup futuro iniciou ou mudou de condição/);
+  assert.match(flow, /value: "active"/);
+  assert.match(flow, /value: "start"/);
+  assert.match(flow, /value: "after"/);
+  assert.match(flow, /target: "setup"/);
+  assert.match(flow, /applyTransition/);
+});
+
+test("motivos importados são reaproveitados sem nova digitação", () => {
+  const adjustment = app.match(/async function chooseAdjustment[\s\S]*?\n}\n\nasync function finishMaintenanceDecision/)?.[0] || "";
+  const maintenance = app.match(/async function chooseMaintenance[\s\S]*?\n}\n\nasync function openMachine/)?.[0] || "";
+  assert.match(adjustment, /savedReason \|\|/);
+  assert.match(maintenance, /initial \|\|/);
 });
