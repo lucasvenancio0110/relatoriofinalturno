@@ -14,7 +14,6 @@ import {
   MACHINE_OUTCOMES,
   clockNow,
   ensureMaintenanceCase,
-  maintenanceActionLabel,
   maintenanceCaseOf,
   maintenanceDecisionDetail,
   maintenanceReason,
@@ -55,8 +54,10 @@ import {
 import { parseReport, rebuildInfoFromFields } from "./parser.js";
 import { generateReport } from "./report.js";
 import {
-  SETUP_BEFORE_MAINTENANCE,
-  applySetupBeforeMaintenance,
+  MACHINE_NEXT_STEPS,
+  ROUTED_SETUP_MODES,
+  applyMachineRoute,
+  buildMachineRoute,
 } from "./transitions.js";
 import {
   cellForTnl,
@@ -770,7 +771,7 @@ function persistMaintenanceDraft() {
     tnl,
   );
   maintenanceDrafts[key] = {
-    version: 1,
+    version: 2,
     tnl,
     context: previous.context || { subjectKey: key, tnl },
     values,
@@ -824,6 +825,16 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   const key = maintenanceDraftKey(context, tnl);
   const storedDraft = maintenanceDrafts[key];
   const storedValues = storedDraft?.values || {};
+  const route = context.route || storedDraft?.context?.route || null;
+  const completionConfirmed =
+    typeof context.completionConfirmed === "boolean"
+      ? context.completionConfirmed
+      : typeof storedDraft?.context?.completionConfirmed === "boolean"
+        ? storedDraft.context.completionConfirmed
+        : undefined;
+  const completionDecisionChanged =
+    typeof completionConfirmed === "boolean" &&
+    storedDraft?.context?.completionConfirmed !== completionConfirmed;
   let item = maintenanceRoundDefaults(normalizeMaintenanceCase(
     {
       ...initial,
@@ -839,7 +850,11 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
       ]),
     },
     tnl,
-  ), { producing: Boolean(context.producing) });
+  ), {
+    producing: Boolean(context.producing),
+    completionConfirmed,
+    resetForDecision: !storedDraft || completionDecisionChanged,
+  });
   if (item.callOpenedShift && item.initiationMode === "production") {
     item = normalizeMaintenanceCase(
       {
@@ -854,13 +869,15 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   }
   maintenanceDrafts[key] = {
     ...storedDraft,
-    version: 1,
+    version: 2,
     tnl: Number(tnl),
     context: {
       subjectKey: context.subjectKey || key,
       tnl: Number(tnl),
       reason: context.reason || maintenanceReason(item),
       producing: Boolean(context.producing),
+      route,
+      completionConfirmed,
     },
     values: item,
     openedAt: storedDraft?.openedAt || new Date().toISOString(),
@@ -869,18 +886,35 @@ function showMaintenanceForm(tnl, initial = {}, context = {}) {
   activeMaintenanceDraftKey = key;
   dialog.dataset.tnl = String(Number(tnl));
   dialog.dataset.draftKey = key;
-  dialog.dataset.confirmedCompletion = String(item.reportedCompleted && !item.reviewed);
+  dialog.dataset.confirmedCompletion = String(
+    typeof completionConfirmed === "boolean"
+      ? completionConfirmed
+      : item.reportedCompleted && !item.reviewed,
+  );
   dialog.dataset.producing = String(Boolean(context.producing));
 
   byId("maintenanceDialogTitle").textContent = `Manutenção — TNL ${padTnl(tnl)}`;
   const received = item.originalLines.length
     ? `<details><summary>Ver informação recebida</summary><p>${lineBreaks(item.originalLines.join("\n"))}</p></details>`
     : "";
-  byId("maintenanceSourceSummary").innerHTML = `${
-    item.reportedCompleted
-      ? "<strong>Já veio marcada como concluída.</strong><span>Registre somente os horários, o chamado e como a máquina está.</span>"
-      : "<strong>Confirme rapidamente a situação na máquina.</strong>"
-  }${item.reasons.length ? `<span>Motivo: ${escapeHtml(item.reasons.join(" + "))}</span>` : ""}${received}`;
+  const routeSummary = route
+    ? `<span>Próximo passo: ${escapeHtml(
+        route.nextStep === MACHINE_NEXT_STEPS.setup
+          ? route.setupMode === ROUTED_SETUP_MODES.start
+            ? "iniciar setup"
+            : "em setup"
+          : "manutenção",
+      )}.</span>`
+    : "";
+  const completionSummary =
+    completionConfirmed === false
+      ? "<strong>Manutenção ainda não confirmada como concluída.</strong><span>Registre como está o atendimento agora.</span>"
+      : completionConfirmed === true
+        ? "<strong>Manutenção confirmada como concluída.</strong><span>Registre os horários, o chamado e como a máquina está.</span>"
+        : item.reportedCompleted
+          ? "<strong>Já veio marcada como concluída.</strong><span>Registre somente os horários, o chamado e como a máquina está.</span>"
+          : "<strong>Confirme rapidamente a situação na máquina.</strong>";
+  byId("maintenanceSourceSummary").innerHTML = `${completionSummary}${routeSummary}${item.reasons.length ? `<span>Motivo: ${escapeHtml(item.reasons.join(" + "))}</span>` : ""}${received}`;
 
   setMaintenanceChoice("maintenanceInitiationMode", item.initiationMode);
   setMaintenanceChoice("maintenanceCallOrigin", item.callOrigin);
@@ -1052,32 +1086,6 @@ function addOutcomeFuture(tnl, mode, emoji = "🔴") {
   state.futureItems = sortByTnl(state.futureItems);
 }
 
-async function resolveSetupBeforeMaintenance(tnl) {
-  if (!categoriesOfTnl(state, tnl).includes("setup")) return null;
-  const resolution = await showChoice({
-    title: `TNL ${padTnl(tnl)} · SETUP → MANUTENÇÃO`,
-    subtitle: "A manutenção já foi registrada. Agora confirme o que aconteceu com o setup para não perder a sequência.",
-    actions: [
-      {
-        value: SETUP_BEFORE_MAINTENANCE.completed,
-        label: "SETUP CONCLUÍDO → ENTROU EM MANUTENÇÃO",
-        tone: "success",
-      },
-      {
-        value: SETUP_BEFORE_MAINTENANCE.resume,
-        label: "SETUP INTERROMPIDO → RETOMAR APÓS MANUTENÇÃO",
-        tone: "setup",
-      },
-      {
-        value: SETUP_BEFORE_MAINTENANCE.remove,
-        label: "A INFORMAÇÃO DE SETUP ESTAVA INCORRETA",
-        tone: "danger",
-      },
-    ],
-  });
-  return resolution ? applySetupBeforeMaintenance(state, tnl, resolution) : false;
-}
-
 async function applyTransition({ subjectKey, tnl, target, applyTarget, action, before }) {
   const other = categoriesOfTnl(state, tnl).filter((category) => category !== target);
   let convertMaintenance = null;
@@ -1228,6 +1236,8 @@ async function finishMaintenanceDecision({
   producing = false,
   before = snapshotSubject(state, subjectKey),
   beforeApply = () => {},
+  route = buildMachineRoute(state, tnl),
+  completionConfirmed,
 }) {
   const existing = maintenanceCaseOf(state, tnl) || {};
   const seed = normalizeMaintenanceCase(
@@ -1246,22 +1256,16 @@ async function finishMaintenanceDecision({
     },
     tnl,
   );
-  const context = { subjectKey, tnl: Number(tnl), reason, producing };
+  const context = {
+    subjectKey,
+    tnl: Number(tnl),
+    reason,
+    producing,
+    route,
+    completionConfirmed,
+  };
   const tracking = await showMaintenanceForm(tnl, seed, context);
   if (!tracking) return false;
-
-  let adjustmentReason = "";
-  if (tracking.machineOutcome === "adjustment") {
-    adjustmentReason = await askText({
-      title: `Motivo do ajuste — TNL ${padTnl(tnl)}`,
-      subtitle: "A máquina passou da manutenção para ajuste. Informe o motivo.",
-      initial: state.reasons.adjustment[String(tnl)] || maintenanceReason(seed),
-    });
-    if (!adjustmentReason) return false;
-  }
-
-  const setupTransition = await resolveSetupBeforeMaintenance(tnl);
-  if (setupTransition === false) return false;
 
   beforeApply();
   ensureMaintenanceCase(state, {
@@ -1281,9 +1285,6 @@ async function finishMaintenanceDecision({
   removeRecordsOfTnl(state, tnl);
   removeCompleted(state, tnl, "maintenance");
 
-  const closedService = ["completed", "resolved_without", "unknown"].includes(
-    tracking.serviceStatus,
-  );
   const activeService = ["waiting", "working"].includes(tracking.serviceStatus);
   if (activeService) {
     setMaintenance(
@@ -1293,28 +1294,10 @@ async function finishMaintenanceDecision({
     );
   } else if (tracking.machineOutcome === "stopped") {
     setMaintenance(tnl, maintenanceReason(seed), false);
-  } else if (tracking.machineOutcome === "adjustment") {
-    if (closedService || seed.reportedCompleted) addCompleted(state, tnl, "maintenance");
-    removeCompleted(state, tnl, "adjustment");
-    setAdjustment(tnl, adjustmentReason);
-  } else if (tracking.machineOutcome === "setup") {
-    if (closedService || seed.reportedCompleted) addCompleted(state, tnl, "maintenance");
-    if (setupTransition?.resolution !== SETUP_BEFORE_MAINTENANCE.completed) {
-      removeCompleted(state, tnl, "setup");
-    }
-    setSetup(
-      tnl,
-      setupTransition?.resumeAfterMaintenance ? setupTransition.setupMode : "active",
-      setupTransition?.emoji || "🔴",
-    );
   } else if (tracking.machineOutcome === "released") {
     addCompleted(state, tnl, "maintenance");
-  } else if (tracking.machineOutcome === "monitoring" && closedService) {
-    addCompleted(state, tnl, "maintenance");
   }
-  if (setupTransition?.resumeAfterMaintenance && tracking.machineOutcome !== "setup") {
-    addOutcomeFuture(tnl, "after", setupTransition.emoji);
-  }
+  const appliedRoute = applyMachineRoute(state, tnl, route);
 
   const finalCase = maintenanceCaseOf(state, tnl);
   clearMaintenanceDraft(maintenanceDraftKey(context, tnl));
@@ -1322,8 +1305,17 @@ async function finishMaintenanceDecision({
     subjectKey,
     tnl,
     kind: subjectKey.startsWith("A:") ? "machine" : "information",
-    action: `MANUTENÇÃO — ${MACHINE_OUTCOMES[tracking.machineOutcome]}`,
-    detail: maintenanceDecisionDetail(finalCase, readFields().currentShift),
+    action:
+      appliedRoute.nextStep === MACHINE_NEXT_STEPS.setup
+        ? `${appliedRoute.action} · MANUTENÇÃO — ${MACHINE_OUTCOMES[tracking.machineOutcome]}`
+        : `MANUTENÇÃO — ${MACHINE_OUTCOMES[tracking.machineOutcome]}`,
+    detail: `${
+      appliedRoute.nextStep === MACHINE_NEXT_STEPS.setup
+        ? `Próximo passo da máquina: ${appliedRoute.action}.\n`
+        : appliedRoute.setupWasPresent
+          ? "Setup concluído antes da manutenção.\n"
+          : ""
+    }${maintenanceDecisionDetail(finalCase, readFields().currentShift)}`,
     before,
   });
   return true;
@@ -1358,6 +1350,11 @@ async function resumePendingMaintenanceDraft() {
       producing: Boolean(context.producing),
       before: snapshotSubject(state, context.subjectKey || `A:${tnl}`),
       beforeApply,
+      route: context.route || buildMachineRoute(state, tnl),
+      completionConfirmed:
+        typeof context.completionConfirmed === "boolean"
+          ? context.completionConfirmed
+          : undefined,
     });
   } finally {
     maintenanceResumeStarted = false;
@@ -1394,6 +1391,47 @@ async function chooseMaintenance(
   });
 }
 
+async function chooseSetupThenMaintenance({
+  subjectKey,
+  tnl,
+  reason,
+  producing = false,
+  before = snapshotSubject(state, subjectKey),
+}) {
+  const setupMode = await showChoice({
+    title: `TNL ${padTnl(tnl)} — SETUP`,
+    subtitle: "Como a máquina vai entrar no setup?",
+    actions: [
+      { value: ROUTED_SETUP_MODES.active, label: "EM SETUP", tone: "setup" },
+      { value: ROUTED_SETUP_MODES.start, label: "INICIAR SETUP", tone: "setup" },
+    ],
+  });
+  if (!setupMode) return false;
+
+  const maintenanceCompleted = await showChoice({
+    title: `TNL ${padTnl(tnl)} — MANUTENÇÃO`,
+    subtitle: "A manutenção foi concluída? Depois desta resposta, abre o atendimento do chamado.",
+    actions: [
+      { value: "yes", label: "SIM", tone: "success" },
+      { value: "no", label: "NÃO", tone: "danger" },
+    ],
+  });
+  if (!maintenanceCompleted) return false;
+
+  return finishMaintenanceDecision({
+    subjectKey,
+    tnl,
+    reason,
+    producing,
+    before,
+    route: buildMachineRoute(state, tnl, {
+      nextStep: MACHINE_NEXT_STEPS.setup,
+      setupMode,
+    }),
+    completionConfirmed: maintenanceCompleted === "yes",
+  });
+}
+
 async function openMachine(tnl) {
   const subjectKey = `A:${Number(tnl)}`;
   const records = recordsOfTnl(state, tnl);
@@ -1403,7 +1441,7 @@ async function openMachine(tnl) {
   const choice = await showChoice({
     title: `TNL ${padTnl(tnl)}${conflict ? " · CONFLITO" : ""}`,
     subtitle: maintenanceRelated
-      ? "Registre o ciclo do chamado, a atuação da manutenção e como a máquina ficou."
+      ? "Primeiro, escolha o próximo passo da máquina. O atendimento vem depois e não será perdido."
       : conflict
         ? `A máquina consta em ${categoriesOfTnl(state, tnl).map(categoryLabel).join(" × ")}. Confirme o status correto.`
         : "Escolha a decisão para essa máquina.",
@@ -1411,10 +1449,11 @@ async function openMachine(tnl) {
     actions: maintenanceRelated
       ? [
           {
-            value: "maintenance_followup",
-            label: maintenanceActionLabel(maintenanceItem),
-            tone: maintenanceItem?.reportedCompleted ? "warning" : "danger",
+            value: "maintenance_path",
+            label: "VAI PASSAR EM MANUTENÇÃO",
+            tone: "danger",
           },
+          { value: "setup_path", label: "VAI PASSAR EM SETUP", tone: "setup" },
           { value: "remove", label: "REMOVER DO RELATÓRIO", tone: "neutral" },
         ]
       : [
@@ -1427,17 +1466,31 @@ async function openMachine(tnl) {
   });
   if (!choice) return;
   const before = snapshotSubject(state, subjectKey);
-  if (choice === "maintenance_followup") {
+  if (["maintenance_path", "setup_path"].includes(choice)) {
     const fallbackReason =
       (state.reasons.maintenance[String(tnl)] || []).join(" + ") ||
       records.map((record) => extractReason(record.rawText || record.displayText)).find(Boolean) ||
       "MANUTENÇÃO";
+    const reason = maintenanceReason(maintenanceItem, fallbackReason);
+    const producing = records.some((record) => record.type === "maintenance_prod");
+    if (choice === "setup_path") {
+      return chooseSetupThenMaintenance({
+        subjectKey,
+        tnl,
+        reason,
+        producing,
+        before,
+      });
+    }
     return finishMaintenanceDecision({
       subjectKey,
       tnl,
-      reason: maintenanceReason(maintenanceItem, fallbackReason),
-      producing: records.some((record) => record.type === "maintenance_prod"),
+      reason,
+      producing,
       before,
+      route: buildMachineRoute(state, tnl, {
+        nextStep: MACHINE_NEXT_STEPS.maintenance,
+      }),
     });
   }
   if (choice === "adjustment") return chooseAdjustment(subjectKey, tnl, before);

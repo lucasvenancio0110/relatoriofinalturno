@@ -127,6 +127,44 @@ test("check do preparador pula a reconfirmação e prepara somente origem e hor�
   assert.equal(reviewed.machineOutcome, "monitoring");
 });
 
+test("resposta explícita sobre conclusão controla o formulário sem perder o rascunho", () => {
+  const declined = maintenanceRoundDefaults(
+    {
+      tnl: 88,
+      reportedCompleted: true,
+      reviewed: false,
+      serviceStatus: "completed",
+      arrivedAt: "17:10",
+      finishedAt: "18:20",
+      machineOutcome: "released",
+    },
+    { completionConfirmed: false, resetForDecision: true },
+  );
+  assert.equal(declined.serviceStatus, "");
+  assert.equal(declined.arrivedAt, "");
+  assert.equal(declined.finishedAt, "");
+  assert.equal(declined.machineOutcome, "");
+
+  const resumed = maintenanceRoundDefaults(
+    {
+      ...declined,
+      serviceStatus: "working",
+      arrivedAt: "17:10",
+      machineOutcome: "stopped",
+    },
+    { completionConfirmed: false, resetForDecision: false },
+  );
+  assert.equal(resumed.serviceStatus, "working");
+  assert.equal(resumed.arrivedAt, "17:10");
+  assert.equal(resumed.machineOutcome, "stopped");
+
+  const confirmed = maintenanceRoundDefaults(
+    { tnl: 88, reportedCompleted: false, reviewed: false },
+    { completionConfirmed: true, resetForDecision: true },
+  );
+  assert.equal(confirmed.serviceStatus, "completed");
+});
+
 test("respostas rápidas derivam a situação sem perguntas extras", () => {
   assert.deepEqual(
     maintenanceRoundState({ arrivalMode: "not_arrived" }),
