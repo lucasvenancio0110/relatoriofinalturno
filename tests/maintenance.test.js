@@ -6,6 +6,7 @@ import {
   maintenanceDecisionDetail,
   maintenanceReportBucket,
   maintenanceRoundDefaults,
+  maintenanceRoundState,
   minutesBetweenTimes,
   previousShift,
   updateMaintenanceCase,
@@ -21,34 +22,28 @@ test("turno anterior e duração atravessando meia-noite são calculados correta
   assert.equal(minutesBetweenTimes("18:20", "19:05"), 45);
 });
 
-test("validação exige os horários condicionais e o detalhe de acompanhamento", () => {
+test("validação exige somente chamado, horários condicionais e estado final", () => {
   const invalid = validateMaintenanceUpdate({
     tnl: 19,
-    callOrigin: "current",
     serviceStatus: "completed",
-    machineOutcome: "monitoring",
   });
   assert.equal(invalid.valid, false);
   assert.deepEqual(invalid.errors, [
-    "Informe o horário de abertura ou marque como não informado.",
     "Informe o código Tractian ou selecione uma das alternativas.",
-    "Informe o horário de início da atuação ou marque como não informado.",
+    "Informe quando a manutenção chegou.",
     "Informe o horário de término ou marque como não informado.",
-    "Informe o que precisa ser acompanhado.",
+    "Informe como a máquina ficou.",
   ]);
 
   const valid = validateMaintenanceUpdate({
     tnl: 19,
-    callOrigin: "current",
-    callOpenedAt: "16:10",
     tractianStatus: "none",
     serviceStatus: "completed",
     arrivedShift: 2,
-    arrivedAt: "17:05",
+    arrivedAtShiftStart: true,
     finishedShift: 2,
     finishedAt: "17:40",
-    machineOutcome: "monitoring",
-    monitoringDetails: "Medida após a troca do bedame",
+    machineOutcome: "released",
   });
   assert.equal(valid.valid, true);
 });
@@ -91,17 +86,26 @@ test("caso de manutenção mantém origem, horários, resultado e texto rastreá
   assert.match(maintenanceDecisionDetail(item, 2), /Acompanhar: Medida após a troca do bedame/);
 });
 
-test("atendimento em andamento não pode resultar em máquina liberada", () => {
+test("atendimento em andamento aceita somente máquina liberada/produzindo ou parada", () => {
   const result = validateMaintenanceUpdate({
     tnl: 48,
-    callOrigin: "previous",
     tractianStatus: "not_found",
     serviceStatus: "working",
     arrivedUnknown: true,
     machineOutcome: "released",
   });
-  assert.equal(result.valid, false);
-  assert.match(result.errors.join(" "), /acompanhamento ou parada/);
+  assert.equal(result.valid, true);
+
+  const invalid = validateMaintenanceUpdate({
+    tnl: 48,
+    tractianStatus: "not_found",
+    serviceStatus: "working",
+    arrivedUnknown: true,
+    machineOutcome: "monitoring",
+    monitoringDetails: "Medida",
+  });
+  assert.equal(invalid.valid, false);
+  assert.match(invalid.errors.join(" "), /liberada\/produzindo ou parada/);
 });
 
 test("check do preparador pula a reconfirmação e prepara somente origem e horários", () => {
@@ -111,7 +115,7 @@ test("check do preparador pula a reconfirmação e prepara somente origem e hor�
     reviewed: false,
   });
   assert.equal(prepared.serviceStatus, "completed");
-  assert.equal(prepared.machineOutcome, "released");
+  assert.equal(prepared.machineOutcome, "");
 
   const reviewed = maintenanceRoundDefaults({
     tnl: 88,
@@ -121,6 +125,39 @@ test("check do preparador pula a reconfirmação e prepara somente origem e hor�
     machineOutcome: "monitoring",
   });
   assert.equal(reviewed.machineOutcome, "monitoring");
+});
+
+test("respostas rápidas derivam a situação sem perguntas extras", () => {
+  assert.deepEqual(
+    maintenanceRoundState({ arrivalMode: "not_arrived" }),
+    { arrived: false, released: false, serviceStatus: "waiting" },
+  );
+  assert.deepEqual(
+    maintenanceRoundState({ arrivalMode: "shift_start", releaseMode: "working" }),
+    { arrived: true, released: false, serviceStatus: "working" },
+  );
+  assert.deepEqual(
+    maintenanceRoundState({ arrivalMode: "manual", releaseMode: "now" }),
+    { arrived: true, released: true, serviceStatus: "completed" },
+  );
+});
+
+test("início do turno substitui horário inventado e sobrevive no relatório", () => {
+  const result = validateMaintenanceUpdate({
+    tnl: 88,
+    tractianCode: "6661",
+    serviceStatus: "completed",
+    arrivedShift: 2,
+    arrivedAtShiftStart: true,
+    finishedAt: "20:10",
+    machineOutcome: "stopped",
+  });
+
+  assert.equal(result.valid, true);
+  const detail = maintenanceDecisionDetail({ ...result.value, reviewed: true }, 2);
+  assert.match(detail, /já estava em manutenção no início do 2º turno/);
+  assert.match(detail, /Liberação da manutenção: às 20:10/);
+  assert.match(detail, /Como ficou: CONTINUA PARADA/);
 });
 
 test("atualização posterior preserva a origem e o horário já registrados", () => {

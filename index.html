@@ -220,148 +220,81 @@
       <form class="modal-card" id="maintenanceForm" method="dialog">
         <div class="modal-handle" aria-hidden="true"></div>
         <div class="maintenance-heading">
-          <p class="eyebrow">RONDA EXPRESSA · SALVAMENTO AUTOMÁTICO</p>
+          <p class="eyebrow">RONDA RÁPIDA · SALVAMENTO AUTOMÁTICO</p>
           <h2 id="maintenanceDialogTitle">Manutenção</h2>
         </div>
         <div class="maintenance-origin" id="maintenanceSourceSummary"></div>
 
+        <div class="maintenance-legacy" hidden>
+          <input id="maintenanceInitiationMode" type="hidden" />
+          <input id="maintenanceCallOrigin" type="hidden" />
+          <input id="maintenanceOpenedAt" type="time" />
+          <input id="maintenanceOpenedUnknown" type="checkbox" />
+          <input id="maintenanceServiceStatus" type="hidden" />
+          <input id="maintenanceArrivedShift" type="hidden" />
+          <input id="maintenanceFinishedShift" type="hidden" />
+        </div>
+
         <div class="maintenance-flow">
-          <section class="maintenance-step" aria-labelledby="maintenanceStartQuestion">
-            <span class="step-number">1</span>
+          <section class="maintenance-step" id="maintenanceArrivedField" aria-labelledby="maintenanceArrivedLabel">
             <div class="step-content">
-              <h3 id="maintenanceStartQuestion">Como essa manutenção começou?</h3>
-              <input id="maintenanceInitiationMode" type="hidden" />
-              <div class="express-options express-options-two">
-                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="production">PRODUÇÃO ABRIU CHAMADO</button>
-                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="maintenance">MANUTENÇÃO INICIOU SOZINHA</button>
-                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="pending">AINDA NÃO INICIOU / SEM CHAMADO</button>
-                <button type="button" data-maintenance-choice="maintenanceInitiationMode" data-value="unknown">NÃO CONSEGUI CONFIRMAR</button>
+              <h3 id="maintenanceArrivedLabel">A manutenção já chegou a atuar?</h3>
+              <div class="time-mode-options quick-answer-grid">
+                <button id="maintenanceNotArrived" type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="not_arrived">AINDA NÃO CHEGOU</button>
+                <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="shift_start">JÁ ESTAVA NO INÍCIO DO TURNO</button>
+                <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="now">CHEGOU AGORA</button>
+                <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="manual">INFORMAR HORÁRIO</button>
+                <button class="wide-choice" type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="unknown">JÁ VEIO · NÃO SEI A HORA</button>
               </div>
-
-              <div class="conditional-panel" id="maintenanceProductionFields" hidden>
-                <p class="field-question">Quem abriu o chamado?</p>
-                <input id="maintenanceCallOrigin" type="hidden" />
-                <div class="express-options express-options-two">
-                  <button id="maintenancePreviousShift" type="button" data-maintenance-choice="maintenanceCallOrigin" data-value="previous">TURNO ANTERIOR</button>
-                  <button id="maintenanceCurrentShift" type="button" data-maintenance-choice="maintenanceCallOrigin" data-value="current">NOSSO TURNO</button>
-                </div>
-
-                <div class="field time-question" id="maintenanceOpenedField" hidden>
-                  <label for="maintenanceOpenedAt">Quando o chamado foi aberto?</label>
-                  <div class="time-mode-options">
-                    <button type="button" data-time-mode-target="maintenanceOpenedAt" data-time-mode="now">AGORA</button>
-                    <button type="button" data-time-mode-target="maintenanceOpenedAt" data-time-mode="manual">INFORMAR HORÁRIO</button>
-                    <button type="button" data-time-mode-target="maintenanceOpenedAt" data-time-mode="unknown">NÃO SEI</button>
-                  </div>
-                  <div class="manual-time" data-manual-time="maintenanceOpenedAt" hidden>
-                    <input class="input" id="maintenanceOpenedAt" type="time" step="60" />
-                  </div>
-                  <input id="maintenanceOpenedUnknown" type="checkbox" hidden />
-                </div>
+              <div class="manual-time" data-manual-time="maintenanceArrivedAt" hidden>
+                <label for="maintenanceArrivedAt">Horário em que chegou</label>
+                <input class="input" id="maintenanceArrivedAt" type="time" step="60" />
               </div>
+              <input id="maintenanceArrivedUnknown" type="checkbox" hidden />
+              <input id="maintenanceArrivedAtShiftStart" type="checkbox" hidden />
+            </div>
+          </section>
 
-              <div class="conditional-panel tractian-panel" id="maintenanceTractianField" hidden>
-                <div class="field">
-                  <label for="maintenanceTractianCode">Código do chamado no Tractian</label>
-                  <div class="tractian-entry">
-                    <span aria-hidden="true">#</span>
-                    <input id="maintenanceTractianCode" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="6661" maxlength="12" />
-                  </div>
-                  <small>Digite somente os números. Exemplo: #6661.</small>
-                </div>
-                <input id="maintenanceTractianStatus" type="hidden" />
-                <div class="express-options express-options-two compact-options">
-                  <button type="button" data-maintenance-choice="maintenanceTractianStatus" data-value="none">NÃO POSSUI CÓDIGO</button>
-                  <button type="button" data-maintenance-choice="maintenanceTractianStatus" data-value="not_found">NÃO LOCALIZEI</button>
-                </div>
+          <section class="maintenance-step" id="maintenanceFinishedField" aria-labelledby="maintenanceFinishedLabel" hidden>
+            <div class="step-content">
+              <h3 id="maintenanceFinishedLabel">A manutenção já liberou?</h3>
+              <div class="time-mode-options quick-answer-grid">
+                <button id="maintenanceStillWorking" type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="working">AINDA ESTÁ EM MANUTENÇÃO</button>
+                <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="now">LIBEROU AGORA</button>
+                <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="manual">INFORMAR HORÁRIO</button>
+                <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="unknown">LIBEROU · NÃO SEI A HORA</button>
+              </div>
+              <div class="manual-time" data-manual-time="maintenanceFinishedAt" hidden>
+                <label for="maintenanceFinishedAt">Horário em que liberou</label>
+                <input class="input" id="maintenanceFinishedAt" type="time" step="60" />
+              </div>
+              <input id="maintenanceFinishedUnknown" type="checkbox" hidden />
+            </div>
+          </section>
+
+          <section class="maintenance-step tractian-panel" id="maintenanceTractianField" aria-labelledby="maintenanceTractianLabel" hidden>
+            <div class="step-content">
+              <h3 id="maintenanceTractianLabel">Qual é o chamado no Tractian?</h3>
+              <div class="tractian-entry">
+                <span aria-hidden="true">#</span>
+                <input id="maintenanceTractianCode" inputmode="numeric" pattern="[0-9]*" autocomplete="off" placeholder="6661" maxlength="12" aria-label="Código do chamado no Tractian" />
+              </div>
+              <input id="maintenanceTractianStatus" type="hidden" />
+              <div class="express-options express-options-two compact-options">
+                <button type="button" data-maintenance-choice="maintenanceTractianStatus" data-value="none">NÃO TEM CHAMADO</button>
+                <button type="button" data-maintenance-choice="maintenanceTractianStatus" data-value="not_found">NÃO LOCALIZEI</button>
               </div>
             </div>
           </section>
 
-          <section class="maintenance-step" aria-labelledby="maintenanceStatusQuestion">
-            <span class="step-number">2</span>
+          <section class="maintenance-step" id="maintenanceOutcomeStep" aria-labelledby="maintenanceOutcomeQuestion" hidden>
             <div class="step-content">
-              <h3 id="maintenanceStatusQuestion">A manutenção liberou a máquina?</h3>
-              <input id="maintenanceServiceStatus" type="hidden" />
-              <div class="conditional-panel" id="maintenanceCompletionNotice" hidden>
-                <strong>Já veio informada como liberada.</strong>
-                <p>Preencha quando a manutenção iniciou e quando liberou a máquina.</p>
-              </div>
-              <div class="express-options express-options-two status-options" id="maintenanceStatusOptions">
-                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="waiting">AINDA NÃO CHEGOU / INICIOU</button>
-                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="working">NÃO · AINDA ESTÁ EM MANUTENÇÃO</button>
-                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="completed">SIM · LIBERADA DA MANUTENÇÃO</button>
-                <button type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="resolved_without">RESOLVIDA SEM MANUTENÇÃO</button>
-                <button class="wide-choice" type="button" data-maintenance-choice="maintenanceServiceStatus" data-value="unknown">NÃO CONSEGUI CONFIRMAR</button>
-              </div>
-
-              <div class="conditional-panel time-card" id="maintenanceArrivedField" hidden>
-                <p class="field-question" id="maintenanceArrivedLabel">Quando a manutenção chegou e iniciou?</p>
-                <input id="maintenanceArrivedShift" type="hidden" />
-                <div class="shift-picker" data-shift-picker="maintenanceArrivedShift" aria-label="Turno de início">
-                  <span>Turno</span>
-                  <button type="button" data-shift-target="maintenanceArrivedShift" data-shift="1">1º</button>
-                  <button type="button" data-shift-target="maintenanceArrivedShift" data-shift="2">2º</button>
-                  <button type="button" data-shift-target="maintenanceArrivedShift" data-shift="3">3º</button>
-                </div>
-                <div class="time-mode-options">
-                  <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="now">AGORA</button>
-                  <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="manual">INFORMAR HORÁRIO</button>
-                  <button type="button" data-time-mode-target="maintenanceArrivedAt" data-time-mode="unknown">NÃO SEI</button>
-                </div>
-                <div class="manual-time" data-manual-time="maintenanceArrivedAt" hidden>
-                  <input class="input" id="maintenanceArrivedAt" type="time" step="60" />
-                </div>
-                <input id="maintenanceArrivedUnknown" type="checkbox" hidden />
-              </div>
-
-              <div class="conditional-panel time-card" id="maintenanceFinishedField" hidden>
-                <p class="field-question">Quando a manutenção terminou?</p>
-                <input id="maintenanceFinishedShift" type="hidden" />
-                <div class="shift-picker" data-shift-picker="maintenanceFinishedShift" aria-label="Turno de término">
-                  <span>Turno</span>
-                  <button type="button" data-shift-target="maintenanceFinishedShift" data-shift="1">1º</button>
-                  <button type="button" data-shift-target="maintenanceFinishedShift" data-shift="2">2º</button>
-                  <button type="button" data-shift-target="maintenanceFinishedShift" data-shift="3">3º</button>
-                </div>
-                <div class="time-mode-options">
-                  <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="now">AGORA</button>
-                  <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="manual">INFORMAR HORÁRIO</button>
-                  <button type="button" data-time-mode-target="maintenanceFinishedAt" data-time-mode="unknown">NÃO SEI</button>
-                </div>
-                <div class="manual-time" data-manual-time="maintenanceFinishedAt" hidden>
-                  <input class="input" id="maintenanceFinishedAt" type="time" step="60" />
-                </div>
-                <input id="maintenanceFinishedUnknown" type="checkbox" hidden />
-              </div>
-            </div>
-          </section>
-
-          <section class="maintenance-step" id="maintenanceOutcomeStep" aria-labelledby="maintenanceOutcomeQuestion">
-            <span class="step-number">3</span>
-            <div class="step-content">
-              <h3 id="maintenanceOutcomeQuestion">Depois da liberação, como a máquina ficou?</h3>
+              <h3 id="maintenanceOutcomeQuestion">Como a máquina está agora?</h3>
               <input id="maintenanceMachineOutcome" type="hidden" />
-              <div class="express-options outcome-options">
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="released">LIBERADA</button>
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="monitoring">EM ACOMPANHAMENTO</button>
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="stopped">CONTINUA PARADA</button>
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="adjustment">PASSOU PARA AJUSTE</button>
-                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="setup">PASSOU PARA SETUP</button>
+              <div class="express-options express-options-two outcome-options">
+                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="released">LIBERADA / PRODUZINDO</button>
+                <button type="button" data-maintenance-choice="maintenanceMachineOutcome" data-value="stopped">PARADA</button>
               </div>
-
-              <div class="field conditional-panel" id="maintenanceMonitoringField" hidden>
-                <label for="maintenanceMonitoringDetails">O que precisa ser acompanhado?</label>
-                <textarea class="textarea textarea-compact" id="maintenanceMonitoringDetails" placeholder="Ex.: acompanhar medida após a troca da ferramenta"></textarea>
-              </div>
-
-              <details class="optional-panel">
-                <summary>Adicionar detalhes da atuação <span>(opcional)</span></summary>
-                <div class="field">
-                  <label class="sr-only" for="maintenanceDetails">Detalhes da atuação</label>
-                  <textarea class="textarea textarea-compact" id="maintenanceDetails" placeholder="Ex.: sensor substituído e máquina testada"></textarea>
-                </div>
-              </details>
             </div>
           </section>
         </div>
@@ -370,8 +303,8 @@
         <div class="maintenance-submit">
           <p class="autosave-status" id="maintenanceAutosaveStatus" role="status"><span aria-hidden="true">●</span> Rascunho salvo automaticamente neste dispositivo</p>
           <div class="modal-actions modal-actions-row">
-            <button class="btn btn-primary" id="maintenanceSave" value="save">CONFIRMAR ACOMPANHAMENTO</button>
-            <button class="btn btn-soft" value="cancel" formnovalidate>FECHAR E CONTINUAR DEPOIS</button>
+            <button class="btn btn-primary" id="maintenanceSave" value="save">SALVAR E IR PARA A PRÓXIMA</button>
+            <button class="btn btn-soft" value="cancel" formnovalidate>FECHAR</button>
           </div>
         </div>
       </form>

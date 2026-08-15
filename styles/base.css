@@ -361,6 +361,12 @@ summary:focus-visible,
   filter: brightness(1.08);
 }
 
+.btn:disabled {
+  opacity: 0.4;
+  filter: saturate(0.45);
+  cursor: not-allowed;
+}
+
 .btn-primary {
   color: #fff;
   background: linear-gradient(145deg, var(--accent), var(--accent-strong));
@@ -471,6 +477,7 @@ summary:focus-visible,
   gap: 4px;
   padding: 11px 13px;
   border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
   border-radius: var(--radius-sm);
   color: var(--muted);
   background: var(--surface-soft);
@@ -519,9 +526,7 @@ summary:focus-visible,
 }
 
 .maintenance-step {
-  display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
-  gap: 10px;
+  display: block;
   padding: 14px;
   border: 1px solid var(--line);
   border-radius: 16px;
@@ -561,6 +566,7 @@ summary:focus-visible,
 }
 
 .express-options-two,
+.quick-answer-grid,
 .outcome-options {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
@@ -627,8 +633,7 @@ summary:focus-visible,
   box-shadow: inset 0 0 0 1px var(--setup);
 }
 
-.wide-choice,
-.outcome-options button:last-child {
+.wide-choice {
   grid-column: 1 / -1;
 }
 
@@ -700,6 +705,10 @@ summary:focus-visible,
   gap: 7px;
 }
 
+.time-mode-options.quick-answer-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .time-mode-options button {
   min-height: 42px;
   padding-inline: 7px;
@@ -722,6 +731,17 @@ summary:focus-visible,
 .shift-picker button {
   min-height: 38px;
   padding: 4px;
+}
+
+.manual-time {
+  display: grid;
+  gap: 6px;
+}
+
+.manual-time label {
+  color: var(--muted);
+  font-size: 0.74rem;
+  font-weight: 850;
 }
 
 .manual-time .input {

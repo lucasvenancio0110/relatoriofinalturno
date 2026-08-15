@@ -19,15 +19,14 @@ Aplicação modular para preparar, revisar e copiar a passagem final de turno da
 ## Acompanhamento de manutenção
 
 Toda TNL citada em manutenção entra na ronda, inclusive quando chega marcada com `✅` ou no
-bloco de manutenções concluídas. A Ronda Expressa usa botões grandes para registrar se a
-produção abriu o chamado ou se a manutenção iniciou diretamente, o código Tractian (por
-exemplo, `#6661`), o turno e o horário de cada etapa e uma das situações finais: liberada, em
-acompanhamento, continua parada, passou para ajuste ou passou para setup.
+bloco de manutenções concluídas. A ronda rápida abre no máximo quatro blocos, um por vez:
+chegada da manutenção, liberação, chamado Tractian (por exemplo, `#6661`) e situação atual da
+máquina — liberada/produzindo ou parada.
 
 Quando a manutenção já chega marcada como concluída pelo preparador, a ronda não pergunta
-novamente se houve liberação: registra somente a origem, o chamado e os horários de início e
-liberação. Se ela ainda estiver aberta, o fluxo diferencia manutenção não iniciada, atendimento
-em andamento e liberação.
+novamente se ela chegou ou liberou: pede somente os horários, o chamado e como a máquina está.
+Nos demais casos, opções rápidas como `AINDA NÃO CHEGOU`, `JÁ ESTAVA NO INÍCIO DO TURNO`,
+`CHEGOU AGORA` e `AINDA ESTÁ EM MANUTENÇÃO` substituem os campos de origem e turno.
 
 Nos conflitos de setup com manutenção, o sistema preserva a ordem dos eventos. Depois de
 registrar a manutenção, é possível informar que o setup terminou antes da manutenção, que foi
@@ -39,8 +38,8 @@ andamento são restaurados sem exigir um botão de checkpoint. A confirmação f
 rascunho e registra a decisão. Limpar os dados do site no navegador também remove esses
 rascunhos locais.
 
-No relatório final, as listas operacionais permanecem compactas. O detalhamento de origem,
-chamado Tractian, atuação e resultado aparece sem emojis, agrupado por máquina entre
+No relatório final, as listas operacionais permanecem compactas. O detalhamento do chamado
+Tractian, da atuação e do resultado aparece sem emojis, agrupado por máquina entre
 `DESENVOLVIMENTO` e `OBSERVAÇÕES`.
 
 ## Validação local
