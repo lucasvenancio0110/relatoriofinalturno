@@ -69,6 +69,10 @@ import {
   uniqueStrings,
   validNextShift,
 } from "./utils.js";
+import {
+  existingAdjustmentReason,
+  existingMaintenanceReason,
+} from "./operational-reasons.js";
 
 const FIELD_IDS = [
   "currentShift",
@@ -1237,6 +1241,56 @@ function addOutcomeFuture(tnl, mode, emoji = "🔴") {
   state.futureItems = sortByTnl(state.futureItems);
 }
 
+function saveMissingCategoryReason(tnl, category, reason) {
+  const text = String(reason || "").trim();
+  if (!text) return;
+  const key = String(Number(tnl));
+  if (category === "adjustment") {
+    state.reasons.adjustment[key] = text;
+    recordsOfTnl(state, tnl)
+      .filter((record) => record.type === "adjustment")
+      .forEach((record) => {
+        record.displayText = `TNL ${padTnl(tnl)} - ${text}`;
+        record.rawText = `TNL ${padTnl(tnl)} - ${text}`;
+      });
+    return;
+  }
+  if (category === "maintenance") {
+    state.reasons.maintenance[key] = uniqueStrings([
+      ...(state.reasons.maintenance[key] || []),
+      text,
+    ]);
+    ensureMaintenanceCase(state, {
+      tnl,
+      reason: text,
+      sourceSection: "decision",
+      originalLine: `TNL ${padTnl(tnl)} - ${text}`,
+    });
+    recordsOfTnl(state, tnl)
+      .filter((record) => ["maintenance", "maintenance_prod"].includes(record.type))
+      .forEach((record) => {
+        record.displayText = `TNL ${padTnl(tnl)} - ${text}`;
+        record.rawText = `TNL ${padTnl(tnl)} - ${text}`;
+      });
+  }
+}
+
+async function ensureExistingCategoryReason(tnl, category) {
+  const existing = category === "adjustment"
+    ? existingAdjustmentReason(state, tnl)
+    : existingMaintenanceReason(state, tnl);
+  if (existing) return existing;
+  const label = category === "adjustment" ? "ajuste" : "manutenção";
+  const reason = await askText({
+    title: `Motivo do ${label} — TNL ${padTnl(tnl)}`,
+    subtitle: `Escreva o motivo do ${label} para o relatório.`,
+    initial: "",
+  });
+  if (!reason) return "";
+  saveMissingCategoryReason(tnl, category, reason);
+  return reason;
+}
+
 async function applyTransition({
   subjectKey,
   tnl,
@@ -1298,8 +1352,17 @@ async function applyTransition({
       renderAll();
       return false;
     }
-    if (residual === "remove") removeCategory(state, tnl, category);
-    if (residual === "future_after" || residual === "future_only") {
+    const keepsCategory = residual === "keep" || ["maintenance_after", "maintenance_only"].includes(residual);
+  if (keepsCategory && ["adjustment", "maintenance"].includes(category)) {
+    const keptReason = await ensureExistingCategoryReason(tnl, category);
+    if (!keptReason) {
+      restoreSnapshot(state, before);
+      renderAll();
+      return false;
+    }
+  }
+  if (residual === "remove") removeCategory(state, tnl, category);
+  if (residual === "future_after" || residual === "future_only") {
       const emoji = setupEmoji(tnl);
       removeCategory(state, tnl, "setup");
       addOutcomeFuture(tnl, residual === "future_after" ? "after" : "only", emoji);
@@ -1376,11 +1439,11 @@ async function chooseAdjustment(
   before = snapshotSubject(state, subjectKey),
   beforeApply = () => {},
 ) {
-  const savedReason = state.reasons.adjustment[String(tnl)] || "";
+  const savedReason = existingAdjustmentReason(state, tnl);
   const reason = savedReason ||
     (await askText({
       title: `Motivo do ajuste — TNL ${padTnl(tnl)}`,
-      subtitle: "Informe o motivo do ajuste.",
+      subtitle: "Escreva o motivo do ajuste para o relatório.",
       initial: "",
     }));
   if (!reason) return;
@@ -1567,15 +1630,12 @@ async function chooseMaintenance(
   beforeApply = () => {},
   providedReason = "",
 ) {
-  const initial =
-    providedReason ||
-    (state.reasons.maintenance[String(tnl)] || []).join(" + ") ||
-    maintenanceReason(maintenanceCaseOf(state, tnl) || {}, "");
+  const initial = providedReason || existingMaintenanceReason(state, tnl);
   const reason =
     initial ||
     (await askText({
       title: `Motivo da manutenção — TNL ${padTnl(tnl)}`,
-      subtitle: "Informe o motivo da manutenção.",
+      subtitle: "Escreva o motivo da manutenção para o relatório.",
       initial: "",
     }));
   if (!reason) return false;
@@ -1613,13 +1673,11 @@ async function reviewMachineRelease(subjectKey, tnl, before) {
       const producing = recordsOfTnl(state, tnl).some(
         (record) => record.type === "maintenance_prod",
       );
-      const initialReason =
-        (state.reasons.maintenance[String(tnl)] || []).join(" + ") ||
-        maintenanceReason(maintenanceCaseOf(state, tnl) || {}, "");
+      const initialReason = existingMaintenanceReason(state, tnl);
       const reason = initialReason ||
         (await askText({
           title: `Motivo da manutenção — TNL ${padTnl(tnl)}`,
-          subtitle: "Informe o motivo da manutenção.",
+          subtitle: "Escreva o motivo da manutenção para o relatório.",
           initial: "",
         }));
       if (!reason) return false;
@@ -1649,7 +1707,11 @@ async function reviewMachineRelease(subjectKey, tnl, before) {
       ],
     });
     if (!answer) return false;
-    categoryAnswers[category] = answer === "yes";
+  if (category === "adjustment" && answer === "no") {
+    const adjustmentReason = await ensureExistingCategoryReason(tnl, "adjustment");
+    if (!adjustmentReason) return false;
+  }
+  categoryAnswers[category] = answer === "yes";
   }
 
   const detailLines = [];
