@@ -1276,10 +1276,11 @@ function saveMissingCategoryReason(tnl, category, reason) {
 }
 
 async function ensureExistingCategoryReason(tnl, category) {
-  const existing = category === "adjustment"
-    ? existingAdjustmentReason(state, tnl)
-    : existingMaintenanceReason(state, tnl);
-  if (existing) return existing;
+  // AJUSTE: sempre exige confirmação explícita do motivo na ronda, mesmo que
+  // exista texto antigo ao lado da máquina. MANUTENÇÃO reutiliza motivo real
+  // já existente e pergunta somente quando estiver sem motivo.
+  const existing = category === "maintenance" ? existingMaintenanceReason(state, tnl) : "";
+  if (category === "maintenance" && existing) return existing;
   const label = category === "adjustment" ? "ajuste" : "manutenção";
   const reason = await askText({
     title: `Motivo do ${label} — TNL ${padTnl(tnl)}`,
@@ -1439,13 +1440,13 @@ async function chooseAdjustment(
   before = snapshotSubject(state, subjectKey),
   beforeApply = () => {},
 ) {
-  const savedReason = existingAdjustmentReason(state, tnl);
-  const reason = savedReason ||
-    (await askText({
-      title: `Motivo do ajuste — TNL ${padTnl(tnl)}`,
-      subtitle: "Escreva o motivo do ajuste para o relatório.",
-      initial: "",
-    }));
+  // Toda decisão de passar em AJUSTE pergunta o motivo novamente.
+  // Não reutilizamos automaticamente nome de preparador nem motivo anterior.
+  const reason = await askText({
+    title: `Motivo do ajuste — TNL ${padTnl(tnl)}`,
+    subtitle: "Escreva o motivo do ajuste para o relatório.",
+    initial: "",
+  });
   if (!reason) return;
   await applyTransition({
     subjectKey,

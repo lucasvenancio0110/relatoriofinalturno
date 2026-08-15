@@ -68,7 +68,9 @@ test("rótulos genéricos não contam como motivo operacional", () => {
 });
 
 test("ronda conecta a regra de motivo a todas as transições críticas", () => {
-  assert.match(appSource, /const savedReason = existingAdjustmentReason\(state, tnl\)/);
+  assert.doesNotMatch(appSource, /const savedReason = existingAdjustmentReason\(state, tnl\)/);
+  assert.match(appSource, /Toda decisão de passar em AJUSTE pergunta o motivo novamente/);
+  assert.match(appSource, /const existing = category === "maintenance" \? existingMaintenanceReason\(state, tnl\) : ""/);
   assert.match(appSource, /const initial = providedReason \|\| existingMaintenanceReason\(state, tnl\)/);
   assert.match(appSource, /const initialReason = existingMaintenanceReason\(state, tnl\)/);
   assert.match(appSource, /category === "adjustment" && answer === "no"/);
@@ -114,4 +116,19 @@ test("registro de ajuste contendo somente preparador obriga novo motivo", () => 
   const state = createEmptyState();
   record(state, 60, "adjustment", "Márcio");
   assert.equal(existingAdjustmentReason(state, 60), "");
+});
+
+
+test("ajuste sempre pergunta motivo e manutenção só pergunta quando não existe motivo", () => {
+  const chooseStart = appSource.indexOf("async function chooseAdjustment(");
+  const chooseEnd = appSource.indexOf("function createMaintenanceDecision", chooseStart);
+  const chooseBlock = appSource.slice(chooseStart, chooseEnd);
+  assert.match(chooseBlock, /const reason = await askText\(/);
+  assert.doesNotMatch(chooseBlock, /existingAdjustmentReason\(state, tnl\)/);
+
+  const ensureStart = appSource.indexOf("async function ensureExistingCategoryReason");
+  const ensureEnd = appSource.indexOf("async function applyTransition", ensureStart);
+  const ensureBlock = appSource.slice(ensureStart, ensureEnd);
+  assert.match(ensureBlock, /category === "maintenance" \? existingMaintenanceReason\(state, tnl\) : ""/);
+  assert.match(ensureBlock, /category === "maintenance" && existing/);
 });

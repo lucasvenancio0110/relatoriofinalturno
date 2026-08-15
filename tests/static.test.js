@@ -168,9 +168,10 @@ test("setup futuro mantém a decisão em duas etapas e resolve conflitos", () =>
   assert.match(flow, /applyTransition/);
 });
 
-test("motivos importados são reaproveitados sem nova digitação", () => {
+test("ajuste sempre pede motivo e manutenção reaproveita motivo existente", () => {
   const adjustment = app.match(/async function chooseAdjustment[\s\S]*?\n}\n\nfunction createMaintenanceDecision/)?.[0] || "";
   const maintenance = app.match(/async function chooseMaintenance[\s\S]*?\n}\n\nconst RELEASE_REVIEW_ORDER/)?.[0] || "";
-  assert.match(adjustment, /savedReason \|\|/);
+  assert.match(adjustment, /const reason = await askText\(/);
+  assert.doesNotMatch(adjustment, /savedReason \|\|/);
   assert.match(maintenance, /initial \|\|/);
 });
