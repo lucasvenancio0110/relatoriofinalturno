@@ -26,23 +26,25 @@ jobs:
 
           path = Path("src/js/app.js")
           source = path.read_text(encoding="utf-8")
-          needle = '''  if (!draft || !context || !tnl) return;
-  maintenanceResumeStarted = true;
-'''
-          replacement = '''  if (!draft || !context || !tnl) return;
-  const savedCase = maintenanceCaseOf(state, tnl);
-  const draftUpdatedAt = Date.parse(draft.updatedAt || "");
-  const caseUpdatedAt = Date.parse(savedCase?.updatedAt || "");
-  if (
-    savedCase?.reviewed &&
-    Number.isFinite(caseUpdatedAt) &&
-    (!Number.isFinite(draftUpdatedAt) || draftUpdatedAt <= caseUpdatedAt)
-  ) {
-    clearMaintenanceDraft(activeMaintenanceDraftKey);
-    return;
-  }
-  maintenanceResumeStarted = true;
-'''
+          needle = "\n".join([
+              "  if (!draft || !context || !tnl) return;",
+              "  maintenanceResumeStarted = true;",
+          ])
+          replacement = "\n".join([
+              "  if (!draft || !context || !tnl) return;",
+              "  const savedCase = maintenanceCaseOf(state, tnl);",
+              "  const draftUpdatedAt = Date.parse(draft.updatedAt || \"\");",
+              "  const caseUpdatedAt = Date.parse(savedCase?.updatedAt || \"\");",
+              "  if (",
+              "    savedCase?.reviewed &&",
+              "    Number.isFinite(caseUpdatedAt) &&",
+              "    (!Number.isFinite(draftUpdatedAt) || draftUpdatedAt <= caseUpdatedAt)",
+              "  ) {",
+              "    clearMaintenanceDraft(activeMaintenanceDraftKey);",
+              "    return;",
+              "  }",
+              "  maintenanceResumeStarted = true;",
+          ])
 
           if replacement in source:
               print("Correção já estava aplicada.")
@@ -51,7 +53,7 @@ jobs:
               if count != 1:
                   raise SystemExit(f"Esperava 1 ponto de correção, encontrei {count}.")
               path.write_text(source.replace(needle, replacement, 1), encoding="utf-8")
-              print("Correção aplicada: rascunhos antigos já concluídos serão descartados na restauração.")
+              print("Correção aplicada: rascunhos antigos concluídos serão descartados na restauração.")
 
       - name: Node.js
         uses: actions/setup-node@v4
