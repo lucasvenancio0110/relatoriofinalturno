@@ -1,0 +1,104 @@
+name: Fix maintenance origin wording once
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/fix-maintenance-origin-wording-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Corrigir semântica de turno anterior
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          # 1) UI: deixar claro que "turno anterior" descreve a PARADA,
+          # não quem abriu o chamado.
+          index = Path("index.html")
+          html = index.read_text(encoding="utf-8")
+          html = html.replace(
+              '<h3 id="maintenanceOriginQuestion">Quando começou a parada?</h3>',
+              '<h3 id="maintenanceOriginQuestion">Qual é a origem dessa parada?</h3>',
+              1,
+          )
+          html = html.replace(
+              '<button type="button" data-maintenance-origin="previous">VEIO DO TURNO ANTERIOR</button>',
+              '<button type="button" data-maintenance-origin="previous">JÁ VEIO PARADA DO TURNO ANTERIOR</button>',
+              1,
+          )
+
+          # Cache-bust real para o Safari baixar os arquivos novos.
+          cache = "1.8.5-20260815-1342"
+          html = re.sub(
+              r'(\./(?:styles/(?:tokens|base|components|responsive)\.css|src/js/(?:zoom-lock|app)\.js))\?v=[^\"]+',
+              rf'\1?v={cache}',
+              html,
+          )
+          index.write_text(html, encoding="utf-8")
+
+          # 2) Relatório: nunca inferir que o chamado foi aberto no turno anterior
+          # só porque a máquina já veio parada daquele turno.
+          maintenance = Path("src/js/maintenance.js")
+          text = maintenance.read_text(encoding="utf-8")
+          old = '''  if (value.initiationMode === "production" && value.callOrigin === "previous") {\n    lines.push(`Chamado aberto pelo ${value.callOpenedShift || previousShift(currentShift)}º turno.`);\n  } else if (value.initiationMode === "production" && value.callOrigin === "current") {'''
+          new = '''  if (value.initiationMode === "production" && value.callOrigin === "previous") {\n    lines.push("Máquina já estava parada desde o turno anterior.");\n  } else if (value.initiationMode === "production" && value.callOrigin === "current") {'''
+          if old not in text:
+              raise SystemExit("Bloco de relatório de origem anterior não encontrado")
+          text = text.replace(old, new, 1)
+
+          text = text.replace(
+              'errors.push("Informe qual turno abriu o chamado.");',
+              'errors.push("Informe se a parada veio do turno anterior ou se o chamado foi aberto no nosso turno.");',
+              1,
+          )
+
+          # Reimportação: aceitar a nova frase sem perder compatibilidade com relatórios antigos.
+          anchor = '''  let update = null;\n  let reviewed = true;\n  let match = normalized.match(/^Chamado aberto pelo\\s*([123])\\s*[º°o]?\\s*turno(?:\\s+as\\s+(\\d{2}:\\d{2}))?/i);\n  if (match) {'''
+          replacement = '''  let update = null;\n  let reviewed = true;\n  if (/^Maquina ja estava parada desde o turno anterior/i.test(normalized)) {\n    update = {\n      initiationMode: "production",\n      callOrigin: "previous",\n      callOpenedShift: previousShift(currentShift),\n      callOpenedAt: "",\n      callOpenedUnknown: false,\n    };\n  }\n  let match = normalized.match(/^Chamado aberto pelo\\s*([123])\\s*[º°o]?\\s*turno(?:\\s+as\\s+(\\d{2}:\\d{2}))?/i);\n  if (!update && match) {'''
+          if anchor not in text:
+              raise SystemExit("Âncora do parser de manutenção não encontrada")
+          text = text.replace(anchor, replacement, 1)
+          maintenance.write_text(text, encoding="utf-8")
+
+          # 3) Teste de regressão para a frase que o usuário encontrou no relatório.
+          tests = Path("tests/maintenance.test.js")
+          t = tests.read_text(encoding="utf-8")
+          if "turno anterior descreve a parada sem inventar quem abriu o chamado" not in t:
+              t += '''\n\ntest("turno anterior descreve a parada sem inventar quem abriu o chamado", () => {\n  const detail = maintenanceDecisionDetail({\n    tnl: 98,\n    reasons: ["Variação de comprimento"],\n    initiationMode: "production",\n    callOrigin: "previous",\n    callOpenedShift: 1,\n    tractianCode: "2552",\n    serviceStatus: "completed",\n    arrivedShift: 2,\n    arrivedAtShiftStart: true,\n    finishedShift: 2,\n    finishedAt: "13:41",\n    machineOutcome: "released",\n    reviewed: true,\n  }, 2);\n\n  assert.match(detail, /Máquina já estava parada desde o turno anterior/);\n  assert.doesNotMatch(detail, /Chamado aberto pelo 1º turno/);\n  assert.match(detail, /Chamado Tractian: #2552/);\n});\n'''
+          tests.write_text(t, encoding="utf-8")
+          PY
+
+      - name: Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Instalar dependências
+        run: npm ci --ignore-scripts
+
+      - name: Validar aplicação
+        run: npm run validate
+
+      - name: Commitar correção e remover workflow temporário
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          rm -f .github/workflows/fix-maintenance-origin-wording-once.yml
+          git add -A
+          git commit -m "fix: distinguish prior-shift stop from call origin"
+          git push
