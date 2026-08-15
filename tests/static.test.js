@@ -55,7 +55,7 @@ test("resumo das células usa cinco colunas fixas em todas as larguras", () => {
 test("ronda rápida usa no máximo quatro blocos progressivos", () => {
   assert.doesNotMatch(html, /<select[^>]+id="maintenance(?:CallOrigin|ServiceStatus|MachineOutcome)"/i);
   assert.match(html, /id="maintenanceTractianCode"[^>]+inputmode="numeric"/);
-  assert.match(maintenanceHtml, /VEIO DO TURNO ANTERIOR/);
+  assert.match(maintenanceHtml, /JÁ VEIO PARADA DO TURNO ANTERIOR/);
   assert.match(maintenanceHtml, /ABRIMOS NO NOSSO TURNO/);
   assert.match(maintenanceHtml, /MANUTENÇÃO INICIOU DIRETO/);
   assert.match(maintenanceHtml, /AINDA NÃO CHEGOU/);

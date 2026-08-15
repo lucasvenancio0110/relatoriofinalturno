@@ -115,7 +115,7 @@ test("relatório mantém listas compactas e separa o detalhamento por máquina",
   assert.match(trackingBlock, /Como ficou: EM ACOMPANHAMENTO/);
   assert.match(trackingBlock, /Acompanhar: Acompanhar medida/);
   assert.match(trackingBlock, /\*TNL 048 - FALHA DE SENSOR\*/);
-  assert.match(trackingBlock, /Chamado aberto pelo 1º turno/);
+  assert.match(trackingBlock, /Máquina já estava parada desde o 1º turno/);
   assert.match(trackingBlock, /Manutenção ainda não chegou/);
   assert.match(trackingBlock, /Como ficou: CONTINUA PARADA/);
   assert.doesNotMatch(

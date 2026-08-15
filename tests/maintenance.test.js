@@ -249,3 +249,26 @@ test("preventiva iniciada pela manutenção aceita Tractian e horários em turno
   assert.match(detail, /Liberação da manutenção: 2º turno às 17:20/);
   assert.match(detail, /Como ficou: LIBERADA/);
 });
+
+
+test("turno anterior descreve a parada sem inventar quem abriu o chamado", () => {
+  const detail = maintenanceDecisionDetail({
+    tnl: 98,
+    reasons: ["Variação de comprimento"],
+    initiationMode: "production",
+    callOrigin: "previous",
+    callOpenedShift: 1,
+    tractianCode: "2552",
+    serviceStatus: "completed",
+    arrivedShift: 2,
+    arrivedAtShiftStart: true,
+    finishedShift: 2,
+    finishedAt: "13:41",
+    machineOutcome: "released",
+    reviewed: true,
+  }, 2);
+
+  assert.match(detail, /Máquina já estava parada desde o 1º turno/);
+  assert.doesNotMatch(detail, /Chamado aberto pelo 1º turno/);
+  assert.match(detail, /Chamado Tractian: #2552/);
+});

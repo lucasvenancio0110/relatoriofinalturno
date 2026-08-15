@@ -257,7 +257,7 @@ export function validateMaintenanceUpdate(value) {
     item.initiationMode === "production" &&
     !["previous", "current"].includes(item.callOrigin)
   ) {
-    errors.push("Informe qual turno abriu o chamado.");
+    errors.push("Informe se a parada veio do turno anterior ou se o chamado foi aberto no nosso turno.");
   }
   if (!item.tractianStatus) {
     errors.push("Informe o código Tractian ou selecione uma das alternativas.");
@@ -316,7 +316,8 @@ export function maintenanceTrackingLines(item, currentShift) {
 
   const lines = [];
   if (value.initiationMode === "production" && value.callOrigin === "previous") {
-    lines.push(`Chamado aberto pelo ${value.callOpenedShift || previousShift(currentShift)}º turno.`);
+    const stoppedSinceShift = value.callOpenedShift || previousShift(currentShift);
+    lines.push(`Máquina já estava parada desde o ${stoppedSinceShift}º turno.`);
   } else if (value.initiationMode === "production" && value.callOrigin === "current") {
     const openedShift = value.callOpenedShift || Number(currentShift);
     lines.push(
@@ -446,8 +447,18 @@ export function parseMaintenanceTrackingLine(item, line, currentShift) {
   const normalized = normalizeText(raw).replace(/^[^A-Z0-9]+/i, "").trim();
   let update = null;
   let reviewed = true;
-  let match = normalized.match(/^Chamado aberto pelo\s*([123])\s*[º°o]?\s*turno(?:\s+as\s+(\d{2}:\d{2}))?/i);
+  let match = normalized.match(/^Maquina ja estava parada desde o\s*([123])\s*[º°o]?\s*turno/i);
   if (match) {
+    update = {
+      initiationMode: "production",
+      callOrigin: "previous",
+      callOpenedShift: Number(match[1]),
+      callOpenedAt: "",
+      callOpenedUnknown: false,
+    };
+  }
+  match = normalized.match(/^Chamado aberto pelo\s*([123])\s*[º°o]?\s*turno(?:\s+as\s+(\d{2}:\d{2}))?/i);
+  if (!update && match) {
     const openedShift = Number(match[1]);
     update = {
       initiationMode: "production",
